@@ -50,6 +50,7 @@
     invia: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>',
     indietro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
     mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+    lavoro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>',
     approfondisci: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M10.5 7.5v3l2 1.5"/></svg>'
   };
 
@@ -235,7 +236,7 @@
       const reparti = tuttiRep.filter(r => r.tipo !== 'tutti');
       const tutti = tuttiRep.find(r => r.tipo === 'tutti') || null;
       if (tutti) tutti.agenti = agenti;
-      C = { progetto, reparti, tutti, agenti, collegamenti, stato: {}, giro: null, note: [], conv: {}, aperta: null, scelto: null, invio: false };
+      C = { progetto, reparti, tutti, agenti, collegamenti, stato: {}, giro: null, note: [], conv: {}, lavori: {}, schermate: {}, aperta: null, scelto: null, invio: false };
       disegnaClasse();
       await Promise.all([aggiornaStato(), aggiornaNote(), aggiornaChat()]);
       if (matchMedia('(min-width:761px)').matches) apriChat(tutti ? tutti.id : reparti[0].id, false);
@@ -281,12 +282,18 @@
   const VECCHIO_MS = 10 * 60e3;
   const scrivendo = m => m.stato === 'in_corso' && Date.now() - new Date(m.creato_il).getTime() < VECCHIO_MS;
   async function aggiornaChat() {
-    const msg = await leggi(sb.from('classe_messaggi').select('id, reparto, chi, testo, tipo, stato, creato_il').eq('progetto', C.progetto.id).order('creato_il', { ascending: false }).limit(800));
+    const [msg, lavori] = await Promise.all([
+      leggi(sb.from('classe_messaggi').select('id, reparto, chi, testo, tipo, stato, creato_il, lavoro:uso->>lavoro').eq('progetto', C.progetto.id).order('creato_il', { ascending: false }).limit(800)),
+      leggi(sb.from('classe_lavori').select('id, numero, reparto, stato, titolo, richiesta, chi, piano, piano_impronta, riepilogo, sql, funzioni, rami, pacchetto_impronta, esito, aggiornato_il').eq('progetto', C.progetto.id).order('creato_il', { ascending: false }).limit(60))
+    ]);
+    const primaL = JSON.stringify(C.lavori || {});
+    C.lavori = {}; lavori.forEach(l => { C.lavori[l.id] = l; });
+    const cambiatiLavori = primaL !== JSON.stringify(C.lavori);
     const conv = {};
     msg.reverse().forEach(m => { (conv[m.reparto] = conv[m.reparto] || []).push(m); });
     const prima = JSON.stringify(C.conv), dopo = JSON.stringify(conv);
     C.conv = conv;
-    if (prima !== dopo) { disegnaLista(); if (C.aperta) disegnaConv(); }
+    if (prima !== dopo || cambiatiLavori) { disegnaLista(); if (C.aperta) disegnaConv(); }
   }
 
   const ESITI = { ok: ['ok', 'TUTTO A POSTO', '#7BD389'], attenzione: ['attenzione', 'DA GUARDARE', '#F5C451'], problema: ['problema', 'PROBLEMA', '#FF6B6B'] };
@@ -320,7 +327,7 @@
     </aside>
   </section>
   <section class="chat-sezione" id="chat" aria-label="Le chat">
-    <div class="sezione-testa"><h2>Chat</h2><p>Scrivi a <b>Tutta la classe</b> se non sai a chi chiedere: risponde la coppia giusta e si presenta. Oppure apri la chat della coppia, con l’argomento tra parentesi. Per un lavoro più lungo c’è <b>Approfondisci</b> (la lente): risposta entro un’ora.</p></div>
+    <div class="sezione-testa"><h2>Chat</h2><p>Scrivi a <b>Tutta la classe</b> se non sai a chi chiedere: risponde la coppia giusta e si presenta. Oppure apri la chat della coppia, con l’argomento tra parentesi. Per un lavoro più lungo c’è <b>Approfondisci</b> (la lente): risposta entro un’ora. Per far cambiare Riposa, Easy o il database c’è <b>Chiedi un lavoro</b> (la chiave inglese): piano, il tuo «Approva», schermate, il tuo «Pubblica».</p></div>
     <div class="wa" id="wa"><div class="wa-lista"><div class="wa-lista-testa">Chat <span id="wa-conta"></span></div><div class="wa-voci" id="wa-voci" role="list"></div></div><div class="wa-conv" id="wa-conv" aria-live="polite"></div></div>
   </section>
   <details class="come">
@@ -330,7 +337,8 @@
       <li><b>Tutta la classe.</b> Se non sai a chi chiedere, scrivi lì: la classe sceglie la coppia, che si presenta e ti dice dove continuare.</li>
       <li><b>Approfondiscono ogni ora.</b> Le domande con «Approfondisci» le lavora una sessione completa, con il codice, il database e i connettori.</li>
       <li><b>Controllano due volte al giorno.</b> Il giro delle 7 e delle 14 scrive lo stato dei reparti e le note tra agenti.</li>
-      <li><b>Il via è sempre tuo.</b> Le modifiche a siti, database e social si fanno nelle sessioni di lavoro, col tuo ok.</li>
+      <li><b>Lavorano su tua richiesta.</b> Con «Chiedi un lavoro» la coppia scrive il piano; con il tuo «Approva» lo fa su un ramo a parte e ti mostra le schermate; va online solo con il tuo «Pubblica».</li>
+      <li><b>Il via è sempre tuo.</b> Niente va online, sui siti o nel database, senza il tuo «Pubblica».</li>
     </ol>
   </details>
 </main>`;
@@ -548,12 +556,86 @@
   }
   function bolleConGiorni(lista, bolla) {
     let h = '', giorno = '';
-    lista.forEach(m => { const g = giornoDi(m.creato_il); if (g && g !== giorno) { h += `<div class="giorno">${esc(g)}</div>`; giorno = g; } h += bolla(m); });
+    const ultimo = {}; lista.forEach((m, i) => { if (m.lavoro) ultimo[m.lavoro] = i; });
+    lista.forEach((m, i) => {
+      const g = giornoDi(m.creato_il); if (g && g !== giorno) { h += `<div class="giorno">${esc(g)}</div>`; giorno = g; }
+      h += bolla(m);
+      if (m.lavoro && ultimo[m.lavoro] === i && C.lavori && C.lavori[m.lavoro]) h += schedaLavoro(C.lavori[m.lavoro]);
+    });
     return h;
   }
+
+  // ── «Chiedi un lavoro» (70-classe-lavori.sql) ─────────────────────────────
+  const STATI_LAVORO = {
+    richiesto: ['attesa', 'IN CODA PER IL PIANO'], pianifico: ['attesa', 'SCRIVONO IL PIANO'], piano: ['decidi', 'PIANO DA APPROVARE'],
+    approvato: ['attesa', 'IN CODA PER IL LAVORO'], costruisco: ['attesa', 'LO STANNO FACENDO'], pronto: ['decidi', 'PRONTO: DA PUBBLICARE'],
+    da_pubblicare: ['attesa', 'IN CODA PER ANDARE ONLINE'], pubblico: ['attesa', 'VA ONLINE ORA'], pubblicato: ['fatto', 'ONLINE'],
+    rifiutato: ['fermo', 'FERMATO'], errore: ['fermo', 'SI È FERMATO']
+  };
+  const REPO = { riposa: 'Riposa', app: 'Easy', 'profarmer-cloud': 'documenti e database' };
+  function schedaLavoro(l) {
+    const st = STATI_LAVORO[l.stato] || ['attesa', l.stato];
+    let corpo = '';
+    if (l.stato === 'richiesto' || l.stato === 'pianifico') corpo = `<p class="lv-nota">Al prossimo giro (ogni ora, ai :35) la coppia legge il codice e ti scrive qui il piano. Non cambia niente finché non approvi.</p>`;
+    if (l.stato === 'piano') corpo = `<div class="lv-testo">${testoAgente(l.piano)}</div>`
+      + `<div class="lv-azioni"><button type="button" class="bottone" data-decidi="approva" data-id="${esc(l.id)}">Approva il piano</button>`
+      + `<button type="button" class="bottone secondario" data-decidi="correggi" data-id="${esc(l.id)}" title="Scrivi la correzione nel campo qui sotto, poi tocca qui">Correggi</button>`
+      + `<button type="button" class="link" data-decidi="rifiuta" data-id="${esc(l.id)}">Rifiuta</button></div>`
+      + `<p class="lv-nota">Per correggere: scrivi cosa cambiare nel campo in basso e tocca «Correggi».</p>`;
+    if (l.stato === 'approvato' || l.stato === 'costruisco') corpo = `<p class="lv-nota">Lo fanno su un ramo a parte, senza toccare i siti né i dati veri. Poi qui trovi le schermate e «Pubblica».</p>`;
+    if (l.stato === 'pronto' || l.stato === 'da_pubblicare' || l.stato === 'pubblico' || l.stato === 'pubblicato') {
+      const rami = Array.isArray(l.rami) ? l.rami : [];
+      const sch = (C.schermate || {})[l.id];
+      const conSchermate = ['pronto', 'da_pubblicare', 'pubblico'].includes(l.stato);
+      if (conSchermate && !sch) caricaSchermate(l.id);
+      corpo = `<div class="lv-testo">${testoAgente(l.riepilogo)}</div>`
+        + (sch && sch.length ? `<div class="lv-schermate">${sch.map(x => `<figure><img alt="${esc(x.titolo)}" src="data:${esc(x.tipo)};base64,${esc(x.dati)}" loading="lazy"><figcaption>${esc(x.titolo)}</figcaption></figure>`).join('')}</div>` : (conSchermate && !sch ? '<p class="lv-nota">Carico le schermate…</p>' : ''))
+        + (rami.length ? `<p class="lv-nota">Cosa cambia: ${rami.map(r => `${esc(REPO[r.repo] || r.repo)}${/^https:\/\/github\.com\//.test(r.pr || '') ? ` (${testoAgente(r.pr)})` : ''}`).join(' · ')}</p>` : '')
+        + (l.sql ? `<details class="lv-sql"><summary>Modifiche al database</summary><pre>${esc(l.sql)}</pre></details>` : '')
+        + ((l.funzioni || []).length ? `<p class="lv-nota">Funzioni del server da ripubblicare: ${esc(l.funzioni.join(', '))}</p>` : '');
+      if (l.stato === 'pronto') corpo += `<div class="lv-azioni"><button type="button" class="bottone" data-decidi="pubblica" data-id="${esc(l.id)}">Pubblica</button>`
+        + `<button type="button" class="link" data-decidi="rifiuta" data-id="${esc(l.id)}">Rifiuta</button></div>`;
+      if (l.stato === 'pubblicato' && l.esito) corpo += `<p class="lv-nota">${testoAgente(l.esito)}</p>`;
+    }
+    if ((l.stato === 'rifiutato' || l.stato === 'errore') && l.esito) corpo = `<p class="lv-nota">${testoAgente(l.esito)}</p>`;
+    return `<div class="lavoro lv-${st[0]}"><div class="lv-testa"><b>Lavoro n. ${esc(l.numero)}${l.titolo ? ' · ' + esc(l.titolo) : ''}</b><span class="lv-stato">● ${esc(st[1])}</span></div>`
+      + `<p class="lv-richiesta">${esc(String(l.richiesta).split('\n\nCorrezione di Giulio')[0])}</p>` + corpo + '</div>';
+  }
+  async function caricaSchermate(id) {
+    C.schermate = C.schermate || {};
+    if (C.schermate[id] !== undefined) return;
+    C.schermate[id] = null;
+    try {
+      C.schermate[id] = await leggi(sb.from('classe_lavori_schermate').select('titolo, tipo, dati').eq('lavoro', id).order('ordine'));
+    } catch (_) { C.schermate[id] = []; }
+    if (C.aperta) disegnaConv();
+  }
+  async function decidi(bottone) {
+    const l = C.lavori[bottone.dataset.id]; if (!l) return;
+    const decisione = bottone.dataset.decidi;
+    const ta = document.getElementById('wa-testo');
+    let testo = '';
+    if (decisione === 'correggi') {
+      testo = ta ? ta.value.trim() : '';
+      if (!testo) { mostraErrore('Scrivi nel campo in basso cosa cambiare nel piano, poi tocca «Correggi».'); if (ta) ta.focus(); return; }
+    }
+    if (decisione === 'approva' && !confirm(`Approvi il piano del lavoro n. ${l.numero}? Lo fanno su un ramo a parte: non va online niente finché non premi «Pubblica».`)) return;
+    if (decisione === 'pubblica' && !confirm(`Pubblico il lavoro n. ${l.numero}?\n\nVa online al prossimo giro, esattamente come lo vedi qui${l.sql ? ', con le modifiche al database' : ''}.`)) return;
+    if (decisione === 'rifiuta') {
+      const p = prompt(`Fermo il lavoro n. ${l.numero}: non andrà online niente. Vuoi scrivere il perché? (facoltativo)`, '');
+      if (p === null) return; testo = p.trim();
+    }
+    const impronta = decisione === 'approva' ? l.piano_impronta : decisione === 'pubblica' ? l.pacchetto_impronta : null;
+    bottone.disabled = true; mostraErrore('');
+    try {
+      await chiama({ azione: 'decidi', progetto: C.progetto.id, reparto: l.reparto, id: l.id, decisione, impronta, testo });
+      if (decisione === 'correggi' && ta) ta.value = '';
+      await aggiornaChat(); disegnaConv(); giro();
+    } catch (e) { bottone.disabled = false; mostraErrore(e.message); }
+  }
   function bollaMessaggio(m) {
-    if (m.chi === 'tu') return `<div class="bolla out">${esc(m.testo)}<span class="meta">${m.tipo === 'approfondimento' ? '<span class="fonte">approfondisci</span>' : ''}${esc(soloOra(m.creato_il))}</span></div>`;
-    if (m.tipo === 'avviso') return `<div class="bolla avviso-bolla">${esc(m.testo)}</div>`;
+    if (m.chi === 'tu') return `<div class="bolla out">${esc(m.testo)}<span class="meta">${m.tipo === 'approfondimento' ? '<span class="fonte">approfondisci</span>' : m.tipo === 'lavoro' ? '<span class="fonte">lavoro</span>' : ''}${esc(soloOra(m.creato_il))}</span></div>`;
+    if (m.tipo === 'avviso' || (m.tipo === 'lavoro' && m.chi === 'classe')) return `<div class="bolla avviso-bolla">${esc(m.testo)}</div>`;
     if (m.stato === 'in_corso' && !scrivendo(m)) return `<div class="bolla in errore-bolla">La risposta non è arrivata. Riprova.<span class="meta">${esc(soloOra(m.creato_il))}</span></div>`;
     if (m.stato === 'in_corso') return '<div class="bolla in scrive"><span class="puntini" aria-label="stanno scrivendo"><i></i><i></i><i></i></span></div>';
     if (m.stato === 'errore') return `<div class="bolla in errore-bolla">${esc(m.testo)}<span class="meta">${esc(soloOra(m.creato_il))}</span></div>`;
@@ -585,7 +667,9 @@
       + '<p class="wa-errore" id="wa-errore" hidden></p>'
       + `<form class="wa-scrivi" id="wa-form"><textarea id="wa-testo" rows="1" maxlength="4000" placeholder="${r.tipo === 'tutti' ? 'Scrivi a tutta la classe' : 'Scrivi a ' + esc(coppia(r))}" aria-label="Messaggio per ${esc(titoloChat(r))}"></textarea>`
       + `<div class="wa-azioni">${Dettato.supportato ? `<button type="button" class="detta${Dettato.attivo ? ' attivo' : ''}" data-detta aria-pressed="${Dettato.attivo}" aria-label="${Dettato.attivo ? 'Ferma la dettatura' : 'Detta il messaggio a voce'}" title="${Dettato.attivo ? 'Ferma la dettatura' : 'Detta a voce: parla, poi rileggi e invia'}">${ICONA.mic}</button>` : ''}<button type="submit" class="invia" aria-label="Invia"${scrivono || C.invio ? ' disabled' : ''}>${ICONA.invia}</button>`
-      + `<button type="button" class="approfondisci" data-approfondisci aria-label="Approfondisci: risposta entro un’ora con tutti gli strumenti" title="Approfondisci: risposta entro un’ora con tutti gli strumenti"${C.invio ? ' disabled' : ''}>${ICONA.approfondisci}</button></div></form>`;
+      + `<button type="button" class="approfondisci" data-approfondisci aria-label="Approfondisci: risposta entro un’ora con tutti gli strumenti" title="Approfondisci: risposta entro un’ora con tutti gli strumenti"${C.invio ? ' disabled' : ''}>${ICONA.approfondisci}</button>`
+      + (r.tipo === 'tutti' ? '' : `<button type="button" class="chiedi-lavoro" data-lavoro aria-label="Chiedi un lavoro: modifica a Riposa, Easy o database, con il tuo via" title="Chiedi un lavoro: la coppia ti propone un piano, lo approvi, poi pubblichi"${C.invio ? ' disabled' : ''}>${ICONA.lavoro}</button>`)
+      + '</div></form>';
     if (schedaAperta) { const d = box.querySelector('details.scheda-rep'); if (d) d.open = true; }
     const msg = box.querySelector('.wa-msg');
     if (inFondo) msg.scrollTop = msg.scrollHeight;
@@ -602,7 +686,8 @@
     const ta = document.getElementById('wa-testo'); if (!ta || C.invio) return;
     if (Dettato.attivo) Dettato.ferma();
     const testo = ta.value.trim();
-    if (!testo) { mostraErrore(azione === 'approfondisci' ? 'Scrivi prima la domanda da approfondire.' : ''); return; }
+    if (!testo) { mostraErrore(azione === 'approfondisci' ? 'Scrivi prima la domanda da approfondire.' : azione === 'lavoro' ? 'Scrivi prima il lavoro da fare: cosa cambiare e perché.' : ''); return; }
+    if (azione === 'lavoro' && !confirm('Chiedo questo lavoro alla coppia?\n\nEntro un’ora ti scrive il piano: non cambia niente finché non premi «Approva» e poi «Pubblica».')) return;
     const rep = C.aperta;
     C.invio = true; mostraErrore('');
     document.querySelectorAll('#wa-form button').forEach(b => { b.disabled = true; });
@@ -620,6 +705,8 @@
     if (link) { if (!confirm('Apro questo indirizzo?\n\n' + link.href)) ev.preventDefault(); return; }
     if (ev.target.closest('.indietro')) { C.aperta = null; evidenzia(null); disegnaLista(); disegnaConv(); document.getElementById('wa').scrollIntoView({ block: 'nearest' }); return; }
     if (ev.target.closest('[data-approfondisci]')) { manda('approfondisci'); return; }
+    if (ev.target.closest('[data-lavoro]')) { manda('lavoro'); return; }
+    const dec = ev.target.closest('[data-decidi]'); if (dec) { decidi(dec); return; }
     if (ev.target.closest('[data-detta]')) { Dettato.attivo ? Dettato.ferma() : Dettato.parti(); return; }
     if (ev.target.closest('[data-svuota]') && C.aperta) {
       const r = reparto(C.aperta);

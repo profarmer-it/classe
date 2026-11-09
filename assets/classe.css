@@ -263,3 +263,33 @@ details.come ol{margin-top:10px}
 @media (prefers-reduced-motion:no-preference){.detta.attivo{animation:ascolta 1.2s ease-in-out infinite}}
 @keyframes ascolta{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.55)}50%{box-shadow:0 0 0 8px rgba(229,72,77,0)}}
 .detta:focus-visible,.invia:focus-visible,.approfondisci:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+/* «Chiedi un lavoro» (9/11/2026) */
+.chiedi-lavoro{width:44px;height:44px;border-radius:50%;border:1px solid #3B4A54;background:transparent;color:var(--wa-meta);display:grid;place-items:center;cursor:pointer;flex:none}
+.chiedi-lavoro:hover{color:var(--oro)}
+.chiedi-lavoro:disabled{opacity:.5;cursor:default}
+.chiedi-lavoro svg{width:20px;height:20px}
+.chiedi-lavoro:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.lavoro{align-self:stretch;max-width:640px;margin:6px auto;width:100%;background:#151F27;border:1px solid #2A3942;border-left:4px solid var(--wa-meta);border-radius:10px;padding:12px 14px;color:var(--wa-testo);font-size:14.5px;line-height:1.45}
+.lavoro.lv-decidi{border-left-color:var(--oro)}
+.lavoro.lv-fatto{border-left-color:var(--wa-verde)}
+.lavoro.lv-fermo{border-left-color:#FF6B6B}
+.lv-testa{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;justify-content:space-between}
+.lv-testa b{font-size:15px}
+.lv-stato{font:600 11px/1.4 var(--mono);letter-spacing:.04em;color:var(--wa-meta)}
+.lv-decidi .lv-stato{color:var(--oro)}
+.lv-fatto .lv-stato{color:var(--wa-verde)}
+.lv-fermo .lv-stato{color:#FF8A8A}
+.lv-richiesta{margin:6px 0 8px;color:var(--wa-meta);font-size:13.5px;white-space:pre-wrap;overflow-wrap:anywhere}
+.lv-testo{white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0;padding:10px 12px;background:#0F171D;border-radius:8px}
+.lv-testo a,.lv-nota a{color:#53BDEB}
+.lv-nota{margin:6px 0;color:var(--wa-meta);font-size:13px;overflow-wrap:anywhere}
+.lv-azioni{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.lv-azioni .bottone{min-height:40px;font-size:15px}
+.lv-azioni .link{color:#FF8A8A}
+.lv-schermate{display:flex;gap:10px;overflow-x:auto;padding:4px 0 8px;scroll-snap-type:x mandatory}
+.lv-schermate figure{margin:0;flex:none;scroll-snap-align:start;max-width:min(78vw,420px)}
+.lv-schermate img{display:block;max-height:420px;max-width:100%;border-radius:8px;border:1px solid #2A3942;background:#000}
+.lv-schermate figcaption{font-size:12px;color:var(--wa-meta);margin-top:4px}
+.lv-sql summary{cursor:pointer;color:var(--wa-meta);font-size:13px}
+.lv-sql pre{max-height:260px;overflow:auto;background:#0F171D;padding:10px;border-radius:8px;font:12px/1.4 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
