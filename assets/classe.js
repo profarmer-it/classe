@@ -212,28 +212,32 @@
   }
 
   // ── la classe ────────────────────────────────────────────────────────────
-  const GRUPPO = '__gruppo';
-  let C = null;            // { progetto, reparti, agenti, collegamenti, stato, giro, note, conv, aperta, scelto, inCorso }
+  let C = null;            // { progetto, reparti, tutti, agenti, collegamenti, stato, giro, note, conv, aperta, scelto, invio }
   let giri = [];
   function fermaGiri() { giri.forEach(clearTimeout); giri = []; }
 
   async function leggi(q) { const { data, error } = await q; if (error) throw error; return data; }
+  const memoria = { leggi(k, d) { try { const v = localStorage.getItem('classe-' + k); return v == null ? d : v; } catch (_) { return d; } },
+                    scrivi(k, v) { try { localStorage.setItem('classe-' + k, v); } catch (_) {} } };
 
   async function apriClasse(id) {
     fermaGiri();
     app.innerHTML = '<main class="accesso"><div class="scheda-accesso"><h1>La Classe</h1><p class="aiuto">Apro la classe…</p></div></main>';
     try {
-      const [progetto, reparti, agenti, collegamenti] = await Promise.all([
+      const [progetto, tuttiRep, agenti, collegamenti] = await Promise.all([
         leggi(sb.from('classe_progetti').select('id, nome, descrizione').eq('id', id).single()),
-        leggi(sb.from('classe_reparti').select('id, nome, colore, lato, ordine, dove').eq('progetto', id).order('ordine')),
+        leggi(sb.from('classe_reparti').select('id, nome, colore, lato, ordine, dove, tipo').eq('progetto', id).order('ordine')),
         leggi(sb.from('classe_agenti').select('nome, reparto, ruolo, compito, occhio, con, ordine').eq('progetto', id).order('ordine')),
         leggi(sb.from('classe_collegamenti').select('a, b').eq('progetto', id))
       ]);
-      C = { progetto, reparti, agenti, collegamenti, stato: {}, giro: null, note: [], conv: {}, aperta: null, scelto: reparti[0] && reparti[0].id, invio: false };
-      reparti.forEach(r => { r.agenti = agenti.filter(a => a.reparto === r.id); r.colore = colore(r.colore); r.lato = colore(r.lato); });
+      tuttiRep.forEach(r => { r.agenti = agenti.filter(a => a.reparto === r.id); r.colore = colore(r.colore); r.lato = colore(r.lato); });
+      const reparti = tuttiRep.filter(r => r.tipo !== 'tutti');
+      const tutti = tuttiRep.find(r => r.tipo === 'tutti') || null;
+      if (tutti) tutti.agenti = agenti;
+      C = { progetto, reparti, tutti, agenti, collegamenti, stato: {}, giro: null, note: [], conv: {}, aperta: null, scelto: null, invio: false };
       disegnaClasse();
       await Promise.all([aggiornaStato(), aggiornaNote(), aggiornaChat()]);
-      if (matchMedia('(min-width:761px)').matches) apriChat(GRUPPO, false);
+      if (matchMedia('(min-width:761px)').matches) apriChat(tutti ? tutti.id : reparti[0].id, false);
       giro();
     } catch (e) {
       const scaduta = /JWT|jwt|401|aal/i.test(String(e && e.message || ''));
@@ -250,12 +254,12 @@
     if (!C) return;
     const scrivono = Object.values(C.conv).some(l => l.some(scrivendo));
     giri.push(setTimeout(async () => {
-      if (document.hidden) return giro();
-      try { await aggiornaChat(); if (!scrivono) await Promise.all([aggiornaNote(), aggiornaStato()]); } catch (_) {}
+      if (document.hidden && !scrivono) return giro();
+      try { await aggiornaChat(); await aggiornaNote(); if (!scrivono) await aggiornaStato(); } catch (_) {}
       giro();
     }, scrivono ? (document.hidden ? 15000 : 2500) : 30000));
   }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && C) { aggiornaChat().then(giro).catch(() => {}); } });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && C) { Promise.all([aggiornaChat(), aggiornaNote()]).then(giro).catch(() => {}); } });
 
   async function aggiornaStato() {
     const [stati, g] = await Promise.all([
@@ -268,8 +272,10 @@
   }
   async function aggiornaNote() {
     const note = await leggi(sb.from('classe_note').select('id, da, a, testo, fonte, creato_il').eq('progetto', C.progetto.id).order('creato_il', { ascending: false }).limit(200));
+    const prima = C.note.length && C.note[C.note.length - 1].id;
     C.note = note.reverse();
-    disegnaLista(); if (C.aperta === GRUPPO) disegnaConv();
+    const dopo = C.note.length && C.note[C.note.length - 1].id;
+    if (prima !== dopo || !document.querySelector('#tendina-note .nota')) disegnaTendina(prima && dopo && prima !== dopo);
   }
   const VECCHIO_MS = 10 * 60e3;
   const scrivendo = m => m.stato === 'in_corso' && Date.now() - new Date(m.creato_il).getTime() < VECCHIO_MS;
@@ -279,70 +285,93 @@
     msg.reverse().forEach(m => { (conv[m.reparto] = conv[m.reparto] || []).push(m); });
     const prima = JSON.stringify(C.conv), dopo = JSON.stringify(conv);
     C.conv = conv;
-    if (prima !== dopo) { disegnaLista(); if (C.aperta && C.aperta !== GRUPPO) disegnaConv(); }
+    if (prima !== dopo) { disegnaLista(); if (C.aperta) disegnaConv(); }
   }
 
   const ESITI = { ok: ['ok', 'TUTTO A POSTO', '#7BD389'], attenzione: ['attenzione', 'DA GUARDARE', '#F5C451'], problema: ['problema', 'PROBLEMA', '#FF6B6B'] };
   const pillola = es => { const e = ESITI[es]; return e ? `<span class="esito ${e[0]}">● ${e[1]}</span>` : '<span class="esito nessuno">● NESSUN CONTROLLO</span>'; };
-  const reparto = id => C.reparti.find(r => r.id === id);
+  const reparto = id => C.reparti.find(r => r.id === id) || (C.tutti && C.tutti.id === id ? C.tutti : null);
   const agente = n => C.agenti.find(a => a.nome.toLowerCase() === String(n || '').toLowerCase());
-  const coppia = r => r.agenti.map(a => a.nome).join(' e ');
+  const coppia = r => r.tipo === 'tutti' ? 'Tutta la classe' : r.agenti.map(a => a.nome).join(' e ');
+  const titoloChat = r => r.tipo === 'tutti' ? 'Tutta la classe' : `${coppia(r)} (${r.nome})`;
   const coloreDi = n => { const a = agente(n); return a ? reparto(a.reparto).colore : '#F5C451'; };
-  const FONTI = { giro: 'giro di controllo', chat: 'dalla chat', sessione: 'da una sessione di lavoro', approfondimento: 'da un approfondimento' };
+  const FONTI = { giro: 'giro', chat: 'dalla chat', sessione: 'sessione', approfondimento: 'approfondimento' };
 
   function disegnaClasse() {
+    const aperta = memoria.leggi('tendina', matchMedia('(min-width:1000px)').matches ? '1' : '0') === '1';
     app.innerHTML = `
 <main class="pagina">
-  <header>
-    <div class="barra"><span class="occhiello">Pro Farmer · La Classe</span><span class="chi-sono"><button class="esci" id="esci">Esci</button></span></div>
-    <h1>${esc(C.progetto.nome)}</h1>
-    <p>${esc(C.progetto.descrizione || '')}</p>
-    <p class="giro" id="ultimo-giro">Leggo l’ultimo giro di controllo…</p>
+  <header class="testa">
+    <div class="barra"><span class="occhiello">Pro Farmer · La Classe</span><button class="esci" id="esci">Esci</button></div>
+    <div class="titolo-riga"><h1>${esc(C.progetto.nome)}</h1><p class="giro" id="ultimo-giro">Leggo l’ultimo giro di controllo…</p></div>
   </header>
-  <section class="studio">
-    <div class="mappa"><svg id="ufficio" role="img" aria-label="Mappa dei reparti con la cattedra al centro"></svg>
-      <p class="aiuto">Le luci che scorrono sono il lavoro che passa da un reparto all’altro e verso la cattedra; le linee tratteggiate uniscono i reparti che lavorano insieme.</p></div>
-    <aside class="scheda" aria-live="polite"><div class="reparti" id="reparti" role="group" aria-label="Reparti"></div><div id="dettaglio"></div></aside>
+  <section class="palco${aperta ? ' con-tendina' : ''}" id="palco" aria-label="L’ufficio della classe">
+    <div class="mappa">
+      <svg id="ufficio" role="img" aria-label="Mappa dei reparti con la cattedra al centro: tocca un reparto per scrivere alla sua coppia"></svg>
+      <button type="button" class="apri-tendina" id="apri-tendina" aria-expanded="${aperta}" aria-controls="tendina">${ICONA.gruppo}<span>Tra di loro</span><b id="nuove-note" hidden></b></button>
+      <div class="legenda" id="legenda" role="group" aria-label="Reparti: tocca per scrivere alla coppia"></div>
+    </div>
+    <aside class="tendina" id="tendina" aria-label="Cosa si dicono gli agenti tra di loro"${aperta ? '' : ' hidden'}>
+      <div class="tendina-testa"><span class="avatar gruppo piccolo">${ICONA.gruppo}</span><div><b>Tra di loro</b><span>le note che gli agenti si passano</span></div>
+        <button type="button" class="chiudi-tendina" id="chiudi-tendina" aria-label="Chiudi la tendina">×</button></div>
+      <div class="tendina-note" id="tendina-note" aria-live="polite"></div>
+      <p class="tendina-piede">Scrivono gli agenti: nelle chat, nei giri delle 7 e delle 14, negli approfondimenti e dalle sessioni di lavoro.</p>
+    </aside>
   </section>
-  <section class="chat-sezione" id="chat" aria-label="Chat con gli agenti">
-    <h2>Chat</h2>
-    <p>Ogni chat è con la coppia che segue un argomento, scritto tra parentesi. Rispondono con i dati veri del progetto e, se serve, cercando sul web. Per le domande che chiedono un lavoro più lungo (il codice, Fatture in Cloud, i connettori) c’è <b>Approfondisci</b>: la risposta arriva entro un’ora. Le note che si passano tra loro sono in «Tra di loro».</p>
+  <section class="chat-sezione" id="chat" aria-label="Le chat">
+    <div class="sezione-testa"><h2>Chat</h2><p>Scrivi a <b>Tutta la classe</b> se non sai a chi chiedere: risponde la coppia giusta e si presenta. Oppure apri la chat della coppia, con l’argomento tra parentesi. Per un lavoro più lungo c’è <b>Approfondisci</b> (la lente): risposta entro un’ora.</p></div>
     <div class="wa" id="wa"><div class="wa-lista"><div class="wa-lista-testa">Chat <span id="wa-conta"></span></div><div class="wa-voci" id="wa-voci" role="list"></div></div><div class="wa-conv" id="wa-conv" aria-live="polite"></div></div>
   </section>
-  <section class="come" aria-label="Come lavora la classe">
-    <h2>Come lavora la classe</h2>
+  <details class="come">
+    <summary>Come lavora la classe</summary>
     <ol>
       <li><b>Rispondono in chat.</b> Ogni coppia legge i dati veri del suo reparto, cerca sul web e lascia note ai colleghi. Da qui non cambia niente.</li>
+      <li><b>Tutta la classe.</b> Se non sai a chi chiedere, scrivi lì: la classe sceglie la coppia, che si presenta e ti dice dove continuare.</li>
       <li><b>Approfondiscono ogni ora.</b> Le domande con «Approfondisci» le lavora una sessione completa, con il codice, il database e i connettori.</li>
       <li><b>Controllano due volte al giorno.</b> Il giro delle 7 e delle 14 scrive lo stato dei reparti e le note tra agenti.</li>
       <li><b>Il via è sempre tuo.</b> Le modifiche a siti, database e social si fanno nelle sessioni di lavoro, col tuo ok.</li>
     </ol>
-  </section>
+  </details>
 </main>`;
     document.getElementById('esci').addEventListener('click', esci);
     disegnaMappa();
-    const boxRep = document.getElementById('reparti');
-    boxRep.innerHTML = C.reparti.map(r => `<button type="button" data-id="${esc(r.id)}" style="--c:${r.colore}" aria-pressed="false"><span class="pallino"></span>${esc(r.nome)}</button>`).join('');
-    boxRep.addEventListener('click', ev => { const b = ev.target.closest('button'); if (b) scegli(b.dataset.id); });
-    document.getElementById('dettaglio').addEventListener('click', ev => { const b = ev.target.closest('[data-scrivi]'); if (b) apriChat(b.dataset.scrivi, true); });
+    const leg = document.getElementById('legenda');
+    leg.innerHTML = C.reparti.map(r => `<button type="button" data-id="${esc(r.id)}" style="--c:${r.colore}"><span class="pallino"></span>${esc(r.nome)}</button>`).join('');
+    leg.addEventListener('click', ev => { const b = ev.target.closest('button'); if (b) scegli(b.dataset.id); });
+    document.getElementById('apri-tendina').addEventListener('click', () => tendina(!document.getElementById('palco').classList.contains('con-tendina')));
+    document.getElementById('chiudi-tendina').addEventListener('click', () => tendina(false));
     document.getElementById('wa-voci').addEventListener('click', ev => { const b = ev.target.closest('[data-chat]'); if (b) apriChat(b.dataset.chat, false); });
     document.getElementById('wa-conv').addEventListener('click', clicConv);
-    scegli(C.scelto);
+    disegnaTendina(false);
     disegnaLista(); disegnaConv();
   }
 
-  function scegli(id) {
-    const r = reparto(id); if (!r) return;
-    C.scelto = id;
-    document.querySelectorAll('#reparti button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === id));
+  function tendina(apri) {
+    const palco = document.getElementById('palco'), t = document.getElementById('tendina'), b = document.getElementById('apri-tendina');
+    palco.classList.toggle('con-tendina', apri); t.hidden = !apri; b.setAttribute('aria-expanded', apri);
+    memoria.scrivi('tendina', apri ? '1' : '0');
+    if (apri) { document.getElementById('nuove-note').hidden = true; const box = document.getElementById('tendina-note'); box.scrollTop = box.scrollHeight; }
+  }
+  function disegnaTendina(novita) {
+    const box = document.getElementById('tendina-note'); if (!box) return;
+    const inFondo = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    let h = '', giorno = '';
+    C.note.slice(-80).forEach(n => {
+      const g = giornoDi(n.creato_il);
+      if (g && g !== giorno) { h += `<div class="giorno">${esc(g)}</div>`; giorno = g; }
+      h += `<div class="nota"><div class="nota-testa"><b style="color:${coloreDi(n.da)}">${esc(n.da)}</b><span class="a">→ ${esc(n.a)}</span><span class="quando">${esc(soloOra(n.creato_il))}</span></div>`
+        + `<p>${testoAgente(n.testo)}</p><span class="fonte">${esc(FONTI[n.fonte] || '')}</span></div>`;
+    });
+    box.innerHTML = h || '<p class="vuoto">Ancora nessuna nota tra gli agenti.</p>';
+    if (inFondo || !novita) box.scrollTop = box.scrollHeight;
+    if (novita && document.getElementById('tendina').hidden) { const b = document.getElementById('nuove-note'); b.hidden = false; b.textContent = 'nuove'; }
+  }
+
+  // un reparto (sulla mappa o nella legenda): si apre la chat della sua coppia
+  function scegli(id) { if (reparto(id)) apriChat(id, true); }
+  function evidenzia(id) {
     Object.entries(isole).forEach(([k, g]) => g.classList.toggle('scelta', k === id));
-    const det = document.getElementById('dettaglio');
-    det.style.setProperty('--c', r.colore);
-    det.innerHTML = `<h2>${esc(r.nome)}</h2><p class="dove">${esc(r.dove)}</p>`
-      + r.agenti.map(a => `<div class="agente" style="--c:${r.colore}"><h3>${esc(a.nome)} <span>${esc(a.ruolo)}</span></h3>`
-        + `<p>${esc(a.compito)}</p><p><span class="lbl">Tiene d'occhio</span>${esc(a.occhio)}</p>${a.con ? `<p><span class="lbl">Lavora con</span>${esc(a.con)}</p>` : ''}</div>`).join('')
-      + `<button type="button" class="scrivi" data-scrivi="${esc(r.id)}">${ICONA.chat}Scrivi a ${esc(coppia(r))} (${esc(r.nome)})</button>`
-      + controlloHtml(id);
+    document.querySelectorAll('#legenda button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === id));
   }
   function controlloHtml(id) {
     const st = C.stato[id];
@@ -356,7 +385,7 @@
   }
   function disegnaStati() {
     const g = C.giro, box = document.getElementById('ultimo-giro');
-    if (box) box.innerHTML = g ? `Ultimo giro di controllo: ${esc(ora(g.quando))} ${pillola(g.esito)}${g.riassunto ? ' <span>' + esc(g.riassunto) + '</span>' : ''}` : 'Nessun giro di controllo ancora: passa alle 7 e alle 14.';
+    if (box) box.innerHTML = g ? `Ultimo giro ${esc(ora(g.quando))} ${pillola(g.esito)}${g.riassunto ? ' <span>' + esc(g.riassunto) + '</span>' : ''}` : 'Nessun giro di controllo ancora: passa alle 7 e alle 14.';
     C.reparti.forEach(r => {
       if (!r.statoTesto) return;
       const st = C.stato[r.id], e = st && ESITI[st.esito];
@@ -364,7 +393,6 @@
       r.statoTesto.setAttribute('fill', e ? e[2] : '#97A6B8');
       if (r.cartello) r.cartello.setAttribute('stroke', e ? e[2] : r.colore);
     });
-    if (C.scelto) scegli(C.scelto);
   }
 
   // ── la mappa dell'ufficio ────────────────────────────────────────────────
@@ -454,23 +482,21 @@
   }
 
   // ── le chat ──────────────────────────────────────────────────────────────
-  const avatarCoppia = r => `<span class="avatar" style="background:${r.colore};font-size:14px">${esc(r.agenti.map(a => a.nome[0]).join(''))}</span>`;
+  const avatarCoppia = r => r.tipo === 'tutti'
+    ? `<span class="avatar tutti">${ICONA.gruppo}</span>`
+    : `<span class="avatar" style="background:${r.colore};font-size:14px">${esc(r.agenti.map(a => a.nome[0]).join(''))}</span>`;
+  function voce(r) {
+    const l = (C.conv[r.id] || []).filter(m => !scrivendo(m)), m = l[l.length - 1];
+    const scrive = (C.conv[r.id] || []).some(scrivendo);
+    const sotto = r.tipo === 'tutti' ? 'Non sai a chi chiedere? Scrivi qui' : r.agenti.map(a => a.ruolo).join(' e ');
+    return `<button type="button" class="wa-voce${r.tipo === 'tutti' ? ' wa-voce-tutti' : ''}" role="listitem" data-chat="${esc(r.id)}"${C.aperta === r.id ? ' aria-current="true"' : ''}>`
+      + avatarCoppia(r) + `<span style="min-width:0"><span class="nome" style="display:block">${r.tipo === 'tutti' ? 'Tutta la classe' : `${esc(coppia(r))} <span class="ruolo">(${esc(r.nome)})</span>`}</span>`
+      + `<span class="anteprima" style="display:block">${scrive ? 'stanno scrivendo…' : m ? esc((m.chi === 'tu' ? 'Tu' : m.chi === 'classe' ? 'Classe' : m.chi) + ': ' + m.testo) : esc(sotto)}</span></span>`
+      + `<span class="ora">${m ? esc(quandoBreve(m.creato_il)) : ''}</span></button>`;
+  }
   function disegnaLista() {
     const box = document.getElementById('wa-voci'); if (!box) return;
-    const u = C.note[C.note.length - 1];
-    let h = `<button type="button" class="wa-voce" role="listitem" data-chat="${GRUPPO}"${C.aperta === GRUPPO ? ' aria-current="true"' : ''}>`
-      + `<span class="avatar gruppo">${ICONA.gruppo}</span><span style="min-width:0"><span class="nome" style="display:block">Tra di loro</span>`
-      + `<span class="anteprima" style="display:block">${u ? esc(u.da + ': ' + u.testo) : 'Le note che gli agenti si passano'}</span></span>`
-      + `<span class="ora">${u ? esc(quandoBreve(u.creato_il)) : ''}</span></button>`;
-    C.reparti.forEach(r => {
-      const l = (C.conv[r.id] || []).filter(m => m.stato !== 'in_corso'), m = l[l.length - 1];
-      const scrive = (C.conv[r.id] || []).some(scrivendo);
-      h += `<button type="button" class="wa-voce" role="listitem" data-chat="${esc(r.id)}"${C.aperta === r.id ? ' aria-current="true"' : ''}>`
-        + avatarCoppia(r) + `<span style="min-width:0"><span class="nome" style="display:block">${esc(coppia(r))} <span class="ruolo">(${esc(r.nome)})</span></span>`
-        + `<span class="anteprima" style="display:block">${scrive ? 'stanno scrivendo…' : m ? esc((m.chi === 'tu' ? 'Tu' : m.chi === 'classe' ? 'Classe' : m.chi) + ': ' + m.testo) : esc(r.agenti.map(a => a.ruolo).join(' e '))}</span></span>`
-        + `<span class="ora">${m ? esc(quandoBreve(m.creato_il)) : ''}</span></button>`;
-    });
-    box.innerHTML = h;
+    box.innerHTML = (C.tutti ? voce(C.tutti) : '') + C.reparti.map(voce).join('');
     document.getElementById('wa-conta').textContent = C.reparti.length + ' coppie';
   }
   function bolleConGiorni(lista, bolla) {
@@ -484,8 +510,16 @@
     if (m.stato === 'in_corso' && !scrivendo(m)) return `<div class="bolla in errore-bolla">La risposta non è arrivata. Riprova.<span class="meta">${esc(soloOra(m.creato_il))}</span></div>`;
     if (m.stato === 'in_corso') return '<div class="bolla in scrive"><span class="puntini" aria-label="stanno scrivendo"><i></i><i></i><i></i></span></div>';
     if (m.stato === 'errore') return `<div class="bolla in errore-bolla">${esc(m.testo)}<span class="meta">${esc(soloOra(m.creato_il))}</span></div>`;
-    return `<div class="bolla in"><span class="mitt" style="color:${coloreDi(m.chi)}">${esc(m.chi)}</span>${testoAgente(m.testo)}`
+    const a = agente(m.chi), rep = a && reparto(a.reparto);
+    const etichetta = C.aperta && reparto(C.aperta) && reparto(C.aperta).tipo === 'tutti' && rep ? ` <span class="a">· ${esc(rep.nome)}</span>` : '';
+    return `<div class="bolla in"><span class="mitt" style="color:${coloreDi(m.chi)}">${esc(m.chi)}${etichetta}</span>${testoAgente(m.testo)}`
       + `<span class="meta">${m.tipo === 'approfondimento' ? '<span class="fonte">approfondimento</span>' : ''}${esc(soloOra(m.creato_il))}</span></div>`;
+  }
+  function schedaReparto(r) {
+    if (r.tipo === 'tutti') return `<div class="avviso">Scrivi a tutti e dodici: la classe sceglie la coppia giusta, che si presenta con l’argomento tra parentesi e ti dice in quale chat continuare.</div>`;
+    return `<details class="scheda-rep" style="--c:${r.colore}"><summary>${pillola((C.stato[r.id] || {}).esito)} Chi sono e ultimo controllo</summary>`
+      + r.agenti.map(a => `<div class="agente"><h3>${esc(a.nome)} <span>${esc(a.ruolo)}</span></h3><p>${esc(a.compito)}</p><p><span class="lbl">Tiene d'occhio</span>${esc(a.occhio)}</p></div>`).join('')
+      + `<p class="dove">${esc(r.dove)}</p>` + controlloHtml(r.id) + '</details>';
   }
   function disegnaConv() {
     const wa = document.getElementById('wa'), box = document.getElementById('wa-conv'); if (!box) return;
@@ -493,40 +527,28 @@
     wa.classList.add('aperta');
     const vecchio = box.querySelector('.wa-msg');
     const inFondo = !vecchio || vecchio.scrollHeight - vecchio.scrollTop - vecchio.clientHeight < 80;
+    const schedaAperta = !!box.querySelector('details.scheda-rep[open]');
     const ta0 = box.querySelector('textarea'), bozza = ta0 ? ta0.value : '', fuoco = ta0 && document.activeElement === ta0;
-    let h;
-    if (C.aperta === GRUPPO) {
-      h = `<div class="wa-conv-testa"><button type="button" class="indietro" aria-label="Torna alle chat">${ICONA.indietro}</button>`
-        + `<span class="avatar gruppo">${ICONA.gruppo}</span><span class="chi"><b>Tra di loro</b><span>${esc(C.agenti.map(a => a.nome).join(', '))}</span></span></div>`
-        + '<div class="wa-msg"><div class="avviso">Qui scrivono gli agenti, non tu: le note dei giri, quelle passate durante le chat e gli approfondimenti, e quelle delle sessioni di lavoro.</div>'
-        + (C.note.length ? bolleConGiorni(C.note, m => `<div class="bolla in"><span class="mitt" style="color:${coloreDi(m.da)}">${esc(m.da)} <span class="a">→ ${esc(m.a)}</span></span>${testoAgente(m.testo)}<span class="meta"><span class="fonte">${esc(FONTI[m.fonte] || '')}</span>${esc(soloOra(m.creato_il))}</span></div>`) : '<div class="avviso">Nessun messaggio ancora.</div>')
-        + '</div><div class="wa-solo-lettura">Solo gli agenti scrivono in questo gruppo.</div>';
-    } else {
-      const r = reparto(C.aperta), lista = C.conv[r.id] || [];
-      const scrivono = lista.some(scrivendo);
-      h = `<div class="wa-conv-testa"><button type="button" class="indietro" aria-label="Torna alle chat">${ICONA.indietro}</button>`
-        + avatarCoppia(r) + `<span class="chi"><b>${esc(coppia(r))} (${esc(r.nome)})</b><span>${esc(r.agenti.map(a => a.nome + ': ' + a.ruolo).join(' · '))}</span></span>`
-        + (lista.length ? '<button type="button" class="svuota" data-svuota>Svuota la chat</button>' : '') + '</div>'
-        + '<div class="wa-msg">'
-        + `<div class="avviso">${r.agenti.map(a => `${esc(a.nome)}: ${esc(a.occhio)}`).join('<br>')}</div>`
-        + bolleConGiorni(lista, bollaMessaggio)
-        + '</div><p class="wa-errore" id="wa-errore" hidden></p>'
-        + `<form class="wa-scrivi" id="wa-form"><textarea id="wa-testo" rows="1" maxlength="4000" placeholder="Scrivi a ${esc(coppia(r))}" aria-label="Messaggio per ${esc(coppia(r))}"></textarea>`
-        + `<div class="wa-azioni"><button type="submit" class="invia" aria-label="Invia"${scrivono || C.invio ? ' disabled' : ''}>${ICONA.invia}</button>`
-        + `<button type="button" class="approfondisci" data-approfondisci aria-label="Approfondisci: risposta entro un’ora con tutti gli strumenti" title="Approfondisci: risposta entro un’ora con tutti gli strumenti"${C.invio ? ' disabled' : ''}>${ICONA.approfondisci}</button></div></form>`;
-    }
-    box.innerHTML = h;
+    const r = reparto(C.aperta), lista = C.conv[r.id] || [];
+    const scrivono = lista.some(scrivendo);
+    box.innerHTML = `<div class="wa-conv-testa"><button type="button" class="indietro" aria-label="Torna alle chat">${ICONA.indietro}</button>`
+      + avatarCoppia(r) + `<span class="chi"><b>${esc(titoloChat(r))}</b><span>${r.tipo === 'tutti' ? esc(C.agenti.map(a => a.nome).join(', ')) : esc(r.agenti.map(a => a.nome + ': ' + a.ruolo).join(' · '))}</span></span>`
+      + (lista.length ? '<button type="button" class="svuota" data-svuota>Svuota la chat</button>' : '') + '</div>'
+      + '<div class="wa-msg">' + schedaReparto(r) + bolleConGiorni(lista, bollaMessaggio) + '</div>'
+      + '<p class="wa-errore" id="wa-errore" hidden></p>'
+      + `<form class="wa-scrivi" id="wa-form"><textarea id="wa-testo" rows="1" maxlength="4000" placeholder="${r.tipo === 'tutti' ? 'Scrivi a tutta la classe' : 'Scrivi a ' + esc(coppia(r))}" aria-label="Messaggio per ${esc(titoloChat(r))}"></textarea>`
+      + `<div class="wa-azioni"><button type="submit" class="invia" aria-label="Invia"${scrivono || C.invio ? ' disabled' : ''}>${ICONA.invia}</button>`
+      + `<button type="button" class="approfondisci" data-approfondisci aria-label="Approfondisci: risposta entro un’ora con tutti gli strumenti" title="Approfondisci: risposta entro un’ora con tutti gli strumenti"${C.invio ? ' disabled' : ''}>${ICONA.approfondisci}</button></div></form>`;
+    if (schedaAperta) { const d = box.querySelector('details.scheda-rep'); if (d) d.open = true; }
     const msg = box.querySelector('.wa-msg');
     if (inFondo) msg.scrollTop = msg.scrollHeight;
     const ta = box.querySelector('textarea');
-    if (ta) {
-      ta.value = bozza;
-      const alza = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; };
-      alza(); if (fuoco) ta.focus();
-      ta.addEventListener('input', alza);
-      ta.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); box.querySelector('#wa-form').requestSubmit(); } });
-      box.querySelector('#wa-form').addEventListener('submit', ev => { ev.preventDefault(); manda('scrivi'); });
-    }
+    ta.value = bozza;
+    const alza = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; };
+    alza(); if (fuoco) ta.focus();
+    ta.addEventListener('input', alza);
+    ta.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); box.querySelector('#wa-form').requestSubmit(); } });
+    box.querySelector('#wa-form').addEventListener('submit', ev => { ev.preventDefault(); manda('scrivi'); });
   }
   function mostraErrore(t) { const p = document.getElementById('wa-errore'); if (p) { p.textContent = t; p.hidden = !t; } }
   async function manda(azione) {
@@ -535,7 +557,7 @@
     if (!testo) { mostraErrore(azione === 'approfondisci' ? 'Scrivi prima la domanda da approfondire.' : ''); return; }
     const rep = C.aperta;
     C.invio = true; mostraErrore('');
-    const bottoni = document.querySelectorAll('#wa-form button'); bottoni.forEach(b => { b.disabled = true; });
+    document.querySelectorAll('#wa-form button').forEach(b => { b.disabled = true; });
     try {
       await chiama({ azione, progetto: C.progetto.id, reparto: rep, testo });
       ta.value = '';
@@ -548,17 +570,18 @@
   async function clicConv(ev) {
     const link = ev.target.closest('a[data-esterno]');
     if (link) { if (!confirm('Apro questo indirizzo?\n\n' + link.href)) ev.preventDefault(); return; }
-    if (ev.target.closest('.indietro')) { C.aperta = null; disegnaLista(); disegnaConv(); document.getElementById('wa').scrollIntoView({ block: 'nearest' }); return; }
+    if (ev.target.closest('.indietro')) { C.aperta = null; evidenzia(null); disegnaLista(); disegnaConv(); document.getElementById('wa').scrollIntoView({ block: 'nearest' }); return; }
     if (ev.target.closest('[data-approfondisci]')) { manda('approfondisci'); return; }
-    if (ev.target.closest('[data-svuota]') && C.aperta && C.aperta !== GRUPPO) {
+    if (ev.target.closest('[data-svuota]') && C.aperta) {
       const r = reparto(C.aperta);
-      if (!confirm(`Cancello la conversazione con ${coppia(r)}? Non si può tornare indietro.`)) return;
+      if (!confirm(`Cancello la conversazione con ${titoloChat(r)}? Non si può tornare indietro.`)) return;
       try { await chiama({ azione: 'svuota', progetto: C.progetto.id, reparto: r.id }); await aggiornaChat(); disegnaConv(); }
       catch (e) { mostraErrore(e.message); }
     }
   }
   function apriChat(id, scorri) {
-    C.aperta = id === GRUPPO ? GRUPPO : reparto(id) ? id : null;
+    C.aperta = reparto(id) ? id : null;
+    evidenzia(C.aperta);
     disegnaLista(); disegnaConv();
     if (scorri) document.getElementById('chat').scrollIntoView({ behavior: movimento ? 'smooth' : 'auto', block: 'start' });
     const ta = document.getElementById('wa-testo'); if (ta && matchMedia('(pointer:fine)').matches) ta.focus();
