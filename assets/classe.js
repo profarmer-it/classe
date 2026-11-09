@@ -49,6 +49,7 @@
     gruppo: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm7 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM9 13c-3.3 0-6 1.6-6 3.6V19h12v-2.4C15 14.6 12.3 13 9 13zm7 0c-.5 0-1 0-1.5.1 1 .8 1.5 1.8 1.5 2.9V19h5v-2.2c0-2-2.2-3.8-5-3.8z"/></svg>',
     invia: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>',
     indietro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
+    mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
     approfondisci: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M10.5 7.5v3l2 1.5"/></svg>'
   };
 
@@ -481,6 +482,52 @@
     svg.setAttribute('viewBox', `${(bb.x - 16).toFixed(0)} ${(bb.y - 12).toFixed(0)} ${(bb.width + 32).toFixed(0)} ${(bb.height + 24).toFixed(0)}`);
   }
 
+  // ── dettatura a voce ─────────────────────────────────────────────────────
+  // Usa il riconoscimento vocale del browser (Safari su iPhone, Chrome): la voce la trascrivono
+  // Apple o Google, come per la dettatura della tastiera; qui arriva solo il testo, che si rilegge
+  // nel campo e si manda con Invia. Nessun audio viene salvato. Se il browser non lo sa fare,
+  // il pulsante non compare (resta il microfono della tastiera del telefono).
+  const Dettato = (() => {
+    const R = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const d = { supportato: !!R, attivo: false, parti, ferma };
+    let rec = null, base = '';
+    function campo() { return document.getElementById('wa-testo'); }
+    function aggiornaPulsante() {
+      const b = document.querySelector('[data-detta]'); if (!b) return;
+      b.classList.toggle('attivo', d.attivo); b.setAttribute('aria-pressed', d.attivo);
+      b.setAttribute('aria-label', d.attivo ? 'Ferma la dettatura' : 'Detta il messaggio a voce');
+      const ta = campo(); if (ta) ta.placeholder = d.attivo ? 'Parla: il testo compare qui…' : ta.dataset.segnaposto || ta.placeholder;
+    }
+    function parti() {
+      if (!R || d.attivo) return;
+      const ta = campo(); if (!ta) return;
+      ta.dataset.segnaposto = ta.dataset.segnaposto || ta.placeholder;
+      base = ta.value ? ta.value.replace(/\s*$/, ' ') : '';
+      try { rec = new R(); } catch (_) { mostraErrore('La dettatura non è disponibile in questo browser: usa il microfono della tastiera.'); return; }
+      rec.lang = 'it-IT'; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
+      rec.onresult = ev => {
+        let finale = '', provvisorio = '';
+        for (let i = 0; i < ev.results.length; i++) {
+          const t = ev.results[i][0].transcript;
+          if (ev.results[i].isFinal) finale += t; else provvisorio += t;
+        }
+        const t = campo(); if (!t) return;
+        t.value = (base + finale + provvisorio).slice(0, 4000);
+        t.dispatchEvent(new Event('input'));
+      };
+      rec.onerror = ev => {
+        const m = { 'not-allowed': 'Per dettare consenti il microfono al sito (impostazioni del browser).', 'service-not-allowed': 'Per dettare consenti il microfono al sito (impostazioni del browser).',
+                    'no-speech': 'Non ho sentito niente: riprova.', 'audio-capture': 'Non trovo il microfono.', 'network': 'La dettatura ha bisogno della rete.' }[ev.error];
+        if (m) mostraErrore(m);
+      };
+      rec.onend = () => { d.attivo = false; rec = null; aggiornaPulsante(); const t = campo(); if (t) t.value = t.value.replace(/\s+$/, ''); };
+      try { rec.start(); d.attivo = true; mostraErrore(''); aggiornaPulsante(); ta.focus(); }
+      catch (_) { d.attivo = false; mostraErrore('Non riesco ad avviare la dettatura: riprova.'); }
+    }
+    function ferma() { if (rec) { try { rec.stop(); } catch (_) {} } d.attivo = false; aggiornaPulsante(); }
+    return d;
+  })();
+
   // ── le chat ──────────────────────────────────────────────────────────────
   const avatarCoppia = r => r.tipo === 'tutti'
     ? `<span class="avatar tutti">${ICONA.gruppo}</span>`
@@ -537,7 +584,7 @@
       + '<div class="wa-msg">' + schedaReparto(r) + bolleConGiorni(lista, bollaMessaggio) + '</div>'
       + '<p class="wa-errore" id="wa-errore" hidden></p>'
       + `<form class="wa-scrivi" id="wa-form"><textarea id="wa-testo" rows="1" maxlength="4000" placeholder="${r.tipo === 'tutti' ? 'Scrivi a tutta la classe' : 'Scrivi a ' + esc(coppia(r))}" aria-label="Messaggio per ${esc(titoloChat(r))}"></textarea>`
-      + `<div class="wa-azioni"><button type="submit" class="invia" aria-label="Invia"${scrivono || C.invio ? ' disabled' : ''}>${ICONA.invia}</button>`
+      + `<div class="wa-azioni">${Dettato.supportato ? `<button type="button" class="detta${Dettato.attivo ? ' attivo' : ''}" data-detta aria-pressed="${Dettato.attivo}" aria-label="${Dettato.attivo ? 'Ferma la dettatura' : 'Detta il messaggio a voce'}" title="${Dettato.attivo ? 'Ferma la dettatura' : 'Detta a voce: parla, poi rileggi e invia'}">${ICONA.mic}</button>` : ''}<button type="submit" class="invia" aria-label="Invia"${scrivono || C.invio ? ' disabled' : ''}>${ICONA.invia}</button>`
       + `<button type="button" class="approfondisci" data-approfondisci aria-label="Approfondisci: risposta entro un’ora con tutti gli strumenti" title="Approfondisci: risposta entro un’ora con tutti gli strumenti"${C.invio ? ' disabled' : ''}>${ICONA.approfondisci}</button></div></form>`;
     if (schedaAperta) { const d = box.querySelector('details.scheda-rep'); if (d) d.open = true; }
     const msg = box.querySelector('.wa-msg');
@@ -553,6 +600,7 @@
   function mostraErrore(t) { const p = document.getElementById('wa-errore'); if (p) { p.textContent = t; p.hidden = !t; } }
   async function manda(azione) {
     const ta = document.getElementById('wa-testo'); if (!ta || C.invio) return;
+    if (Dettato.attivo) Dettato.ferma();
     const testo = ta.value.trim();
     if (!testo) { mostraErrore(azione === 'approfondisci' ? 'Scrivi prima la domanda da approfondire.' : ''); return; }
     const rep = C.aperta;
@@ -572,6 +620,7 @@
     if (link) { if (!confirm('Apro questo indirizzo?\n\n' + link.href)) ev.preventDefault(); return; }
     if (ev.target.closest('.indietro')) { C.aperta = null; evidenzia(null); disegnaLista(); disegnaConv(); document.getElementById('wa').scrollIntoView({ block: 'nearest' }); return; }
     if (ev.target.closest('[data-approfondisci]')) { manda('approfondisci'); return; }
+    if (ev.target.closest('[data-detta]')) { Dettato.attivo ? Dettato.ferma() : Dettato.parti(); return; }
     if (ev.target.closest('[data-svuota]') && C.aperta) {
       const r = reparto(C.aperta);
       if (!confirm(`Cancello la conversazione con ${titoloChat(r)}? Non si può tornare indietro.`)) return;
@@ -580,6 +629,7 @@
     }
   }
   function apriChat(id, scorri) {
+    if (Dettato.attivo) Dettato.ferma();
     C.aperta = reparto(id) ? id : null;
     evidenzia(C.aperta);
     disegnaLista(); disegnaConv();

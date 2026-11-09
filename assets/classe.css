@@ -256,3 +256,10 @@ details.come ol{margin-top:10px}
 .wa-azioni{flex-direction:row}
 .esito{white-space:nowrap}
 .scheda-rep summary{flex-wrap:wrap}
+.detta{width:44px;height:44px;border-radius:50%;border:1px solid #3B4A54;background:transparent;color:var(--wa-meta);display:grid;place-items:center;cursor:pointer;flex:none}
+.detta svg{width:20px;height:20px}
+.detta:hover{color:var(--wa-testo)}
+.detta.attivo{background:#E5484D;border-color:#E5484D;color:#fff}
+@media (prefers-reduced-motion:no-preference){.detta.attivo{animation:ascolta 1.2s ease-in-out infinite}}
+@keyframes ascolta{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.55)}50%{box-shadow:0 0 0 8px rgba(229,72,77,0)}}
+.detta:focus-visible,.invia:focus-visible,.approfondisci:focus-visible{outline:2px solid #fff;outline-offset:2px}
