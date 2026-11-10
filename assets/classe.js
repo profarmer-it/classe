@@ -296,8 +296,8 @@
     if (prima !== dopo || cambiatiLavori) { disegnaLista(); if (C.aperta) disegnaConv(); }
   }
 
-  const ESITI = { ok: ['ok', 'TUTTO A POSTO', '#7BD389'], attenzione: ['attenzione', 'DA GUARDARE', '#F5C451'], problema: ['problema', 'PROBLEMA', '#FF6B6B'] };
-  const pillola = es => { const e = ESITI[es]; return e ? `<span class="esito ${e[0]}">● ${e[1]}</span>` : '<span class="esito nessuno">● NESSUN CONTROLLO</span>'; };
+  const ESITI = { ok: ['ok', 'Tutto a posto', '#3FC07A'], attenzione: ['attenzione', 'Da guardare', '#F5C451'], problema: ['problema', 'Problema', '#FF6B6B'] };
+  const pillola = es => { const e = ESITI[es]; return e ? `<span class="esito ${e[0]}">${e[1]}</span>` : '<span class="esito nessuno">Nessun controllo</span>'; };
   const reparto = id => C.reparti.find(r => r.id === id) || (C.tutti && C.tutti.id === id ? C.tutti : null);
   const agente = n => C.agenti.find(a => a.nome.toLowerCase() === String(n || '').toLowerCase());
   const coppia = r => r.tipo === 'tutti' ? 'Tutta la classe' : r.agenti.map(a => a.nome).join(' e ');
@@ -310,33 +310,35 @@
     app.innerHTML = `
 <main class="pagina">
   <header class="testa">
-    <div class="barra"><span class="occhiello">Pro Farmer · La Classe</span><button class="esci" id="esci">Esci</button></div>
+    <div class="barra"><span class="marchio">Pro Farmer · La Classe</span><button class="esci" id="esci">Esci</button></div>
     <div class="titolo-riga"><h1>${esc(C.progetto.nome)}</h1><p class="giro" id="ultimo-giro">Leggo l’ultimo giro di controllo…</p></div>
   </header>
   <section class="palco${aperta ? ' con-tendina' : ''}" id="palco" aria-label="L’ufficio della classe">
     <div class="mappa">
       <svg id="ufficio" role="img" aria-label="Mappa dei reparti con la cattedra al centro: tocca un reparto per scrivere alla sua coppia"></svg>
-      <button type="button" class="apri-tendina" id="apri-tendina" aria-expanded="${aperta}" aria-controls="tendina">${ICONA.gruppo}<span>Tra di loro</span><b id="nuove-note" hidden></b></button>
-      <div class="legenda" id="legenda" role="group" aria-label="Reparti: tocca per scrivere alla coppia"></div>
+      <div class="mappa-piede">
+        <div class="legenda" id="legenda" role="group" aria-label="Reparti: tocca per scrivere alla coppia"></div>
+        <button type="button" class="apri-tendina" id="apri-tendina" aria-expanded="${aperta}" aria-controls="tendina">${ICONA.gruppo}<span>Tra di loro</span><b id="nuove-note" hidden></b></button>
+      </div>
     </div>
     <aside class="tendina" id="tendina" aria-label="Cosa si dicono gli agenti tra di loro"${aperta ? '' : ' hidden'}>
       <div class="tendina-testa"><span class="avatar gruppo piccolo">${ICONA.gruppo}</span><div><b>Tra di loro</b><span>le note che gli agenti si passano</span></div>
         <button type="button" class="chiudi-tendina" id="chiudi-tendina" aria-label="Chiudi la tendina">×</button></div>
       <div class="tendina-note" id="tendina-note" aria-live="polite"></div>
-      <p class="tendina-piede">Scrivono gli agenti: nelle chat, nei giri delle 7 e delle 14, negli approfondimenti e dalle sessioni di lavoro.</p>
+      <p class="tendina-piede">Scrivono gli agenti: nelle chat, nei giri di ogni ora, negli approfondimenti e dalle sessioni di lavoro.</p>
     </aside>
   </section>
   <section class="chat-sezione" id="chat" aria-label="Le chat">
-    <div class="sezione-testa"><h2>Chat</h2><p>Scrivi a <b>Tutta la classe</b> se non sai a chi chiedere: risponde la coppia giusta e si presenta. Oppure apri la chat della coppia, con l’argomento tra parentesi. Per un lavoro più lungo c’è <b>Approfondisci</b> (la lente): risposta entro un’ora. Per far cambiare Riposa, Easy o il database c’è <b>Chiedi un lavoro</b> (la chiave inglese): piano, il tuo «Approva», schermate, il tuo «Pubblica».</p></div>
-    <div class="wa" id="wa"><div class="wa-lista"><div class="wa-lista-testa">Chat <span id="wa-conta"></span></div><div class="wa-voci" id="wa-voci" role="list"></div></div><div class="wa-conv" id="wa-conv" aria-live="polite"></div></div>
+    <div class="sezione-testa"><h2>Chat</h2><p>Non sai a chi chiedere? Scrivi a <b>Tutta la classe</b>: risponde la coppia giusta.</p></div>
+    <div class="wa" id="wa"><div class="wa-lista"><div class="wa-lista-testa">Le coppie <span id="wa-conta"></span></div><div class="wa-voci" id="wa-voci" role="list"></div></div><div class="wa-conv" id="wa-conv" aria-live="polite"></div></div>
   </section>
   <details class="come">
     <summary>Come lavora la classe</summary>
     <ol>
       <li><b>Rispondono in chat.</b> Ogni coppia legge i dati veri del suo reparto, cerca sul web e lascia note ai colleghi. Da qui non cambia niente.</li>
       <li><b>Tutta la classe.</b> Se non sai a chi chiedere, scrivi lì: la classe sceglie la coppia, che si presenta e ti dice dove continuare.</li>
-      <li><b>Approfondiscono ogni ora.</b> Le domande con «Approfondisci» le lavora una sessione completa, con il codice, il database e i connettori.</li>
-      <li><b>Controllano due volte al giorno.</b> Il giro delle 7 e delle 14 scrive lo stato dei reparti e le note tra agenti.</li>
+      <li><b>Approfondiscono subito.</b> Le domande con «Approfondisci» le lavora una sessione completa, con il codice, il database e i connettori: la risposta arriva di solito in pochi minuti.</li>
+      <li><b>Controllano ogni ora.</b> Il giro passa ogni ora dalle 7 alle 20, scrive lo stato dei reparti e le note tra agenti.</li>
       <li><b>Lavorano su tua richiesta.</b> Con «Chiedi un lavoro» la coppia scrive il piano; con il tuo «Approva» lo fa su un ramo a parte e ti mostra le schermate; va online solo con il tuo «Pubblica».</li>
       <li><b>Il via è sempre tuo.</b> Niente va online, sui siti o nel database, senza il tuo «Pubblica».</li>
     </ol>
@@ -349,7 +351,7 @@
     leg.addEventListener('click', ev => { const b = ev.target.closest('button'); if (b) scegli(b.dataset.id); });
     document.getElementById('apri-tendina').addEventListener('click', () => tendina(!document.getElementById('palco').classList.contains('con-tendina')));
     document.getElementById('chiudi-tendina').addEventListener('click', () => tendina(false));
-    document.getElementById('wa-voci').addEventListener('click', ev => { const b = ev.target.closest('[data-chat]'); if (b) apriChat(b.dataset.chat, false); });
+    document.getElementById('wa-voci').addEventListener('click', ev => { const b = ev.target.closest('[data-chat]'); if (b) apriChat(b.dataset.chat, matchMedia('(max-width:760px)').matches); });
     document.getElementById('wa-conv').addEventListener('click', clicConv);
     disegnaTendina(false);
     disegnaLista(); disegnaConv();
@@ -384,7 +386,7 @@
   }
   function controlloHtml(id) {
     const st = C.stato[id];
-    if (!st) return '<div class="controllo"><h3>Ultimo controllo ' + pillola() + '</h3><p class="vuoto">Questo reparto non è ancora stato controllato: il giro passa alle 7 e alle 14.</p></div>';
+    if (!st) return '<div class="controllo"><h3>Ultimo controllo ' + pillola() + '</h3><p class="vuoto">Questo reparto non è ancora stato controllato: il giro passa ogni ora dalle 7 alle 20.</p></div>';
     const punti = Array.isArray(st.punti) ? st.punti : [], prop = Array.isArray(st.proposte) ? st.proposte : [];
     return `<div class="controllo"><h3>Ultimo controllo ${pillola(st.esito)} <span class="dove">${esc(ora(st.controllato_il))}</span></h3>`
       + (st.riassunto ? `<p class="vuoto">${esc(st.riassunto)}</p>` : '')
@@ -394,12 +396,12 @@
   }
   function disegnaStati() {
     const g = C.giro, box = document.getElementById('ultimo-giro');
-    if (box) box.innerHTML = g ? `Ultimo giro ${esc(ora(g.quando))} ${pillola(g.esito)}${g.riassunto ? ' <span>' + esc(g.riassunto) + '</span>' : ''}` : 'Nessun giro di controllo ancora: passa alle 7 e alle 14.';
+    if (box) box.innerHTML = g ? `Ultimo giro ${esc(ora(g.quando))} ${pillola(g.esito)}${g.riassunto ? ' <span>' + esc(g.riassunto) + '</span>' : ''}` : 'Nessun giro di controllo ancora: passa ogni ora dalle 7 alle 20.';
     C.reparti.forEach(r => {
       if (!r.statoTesto) return;
       const st = C.stato[r.id], e = st && ESITI[st.esito];
-      r.statoTesto.textContent = e ? `${e[1]} · ${ora(st.controllato_il)}` : `${r.agenti.length} AGENTI · IN ATTESA DEL GIRO`;
-      r.statoTesto.setAttribute('fill', e ? e[2] : '#97A6B8');
+      r.statoTesto.textContent = e ? `${e[1]} · ${ora(st.controllato_il)}` : `${r.agenti.length} agenti · in attesa del giro`;
+      r.statoTesto.setAttribute('fill', e ? e[2] : '#A3A3A8');
       if (r.cartello) r.cartello.setAttribute('stroke', e ? e[2] : r.colore);
     });
   }
@@ -420,18 +422,18 @@
     C.reparti.forEach((r, i) => { const a = -Math.PI * 0.75 + i * 2 * Math.PI / n; r.x = Math.cos(a) * R; r.y = Math.sin(a) * R; });
     const centroAlto = r => iso(r.x, r.y, TOP);
     for (let k = -18; k <= 18; k += 3) {
-      strati.fondo.appendChild(el('line', { x1: iso(k, -18)[0], y1: iso(k, -18)[1], x2: iso(k, 18)[0], y2: iso(k, 18)[1], stroke: '#1B2533', 'stroke-width': 1 }));
-      strati.fondo.appendChild(el('line', { x1: iso(-18, k)[0], y1: iso(-18, k)[1], x2: iso(18, k)[0], y2: iso(18, k)[1], stroke: '#1B2533', 'stroke-width': 1 }));
+      strati.fondo.appendChild(el('line', { x1: iso(k, -18)[0], y1: iso(k, -18)[1], x2: iso(k, 18)[0], y2: iso(k, 18)[1], stroke: '#1A1A1D', 'stroke-width': 1 }));
+      strati.fondo.appendChild(el('line', { x1: iso(-18, k)[0], y1: iso(-18, k)[1], x2: iso(18, k)[0], y2: iso(18, k)[1], stroke: '#1A1A1D', 'stroke-width': 1 }));
     }
     C.collegamenti.forEach(({ a, b }) => {
       const A = reparto(a), B = reparto(b); if (!A || !B) return;
       const p = centroAlto(A), q = centroAlto(B);
-      strati.fili.appendChild(el('path', { d: `M${pt(p)} Q${((p[0] + q[0]) / 2).toFixed(1)},${((p[1] + q[1]) / 2 - 40).toFixed(1)} ${pt(q)}`, fill: 'none', stroke: '#5D6B7D', 'stroke-width': 1.4, 'stroke-dasharray': '4 8', class: 'filo', opacity: .8 }));
+      strati.fili.appendChild(el('path', { d: `M${pt(p)} Q${((p[0] + q[0]) / 2).toFixed(1)},${((p[1] + q[1]) / 2 - 40).toFixed(1)} ${pt(q)}`, fill: 'none', stroke: '#5A5A60', 'stroke-width': 1.4, 'stroke-dasharray': '4 8', class: 'filo', opacity: .8 }));
     });
     const cattedra = iso(0, 0, TOP + 0.2);
     C.reparti.forEach((r, i) => {
       const d = `M${pt(centroAlto(r))} L${pt(cattedra)}`;
-      strati.fili.appendChild(el('path', { d, stroke: '#2E3B4D', 'stroke-width': 7, 'stroke-linecap': 'round', fill: 'none' }));
+      strati.fili.appendChild(el('path', { d, stroke: '#26262A', 'stroke-width': 7, 'stroke-linecap': 'round', fill: 'none' }));
       strati.fili.appendChild(el('path', { d, stroke: r.colore, 'stroke-width': 1.6, opacity: .75, fill: 'none' }));
       if (!movimento) return;
       [0, 1].forEach(j => {
@@ -451,8 +453,8 @@
     blocco(gc, 0, 0, 5, 5, 0, TOP, '#2A2416', '#5E4A1A', { stroke: '#F5C451', 'stroke-width': 1.5 });
     blocco(gc, 0, -0.3, 2.4, 1.2, TOP, TOP + 0.55, '#C9A24A', '#7A6127');
     const tc = iso(0, 0, TOP + 3.2);
-    gc.appendChild(el('rect', { x: tc[0] - 96, y: tc[1] - 26, width: 192, height: 44, rx: 8, fill: '#0E141C', stroke: '#F5C451', 'stroke-width': 1.2 }));
-    gc.appendChild(el('text', { x: tc[0], y: tc[1] - 6, 'text-anchor': 'middle', class: 'cattedra-t' }, 'CATTEDRA · GIULIO'));
+    gc.appendChild(el('rect', { x: tc[0] - 96, y: tc[1] - 26, width: 192, height: 44, rx: 8, fill: '#121214', stroke: '#F5C451', 'stroke-width': 1.2 }));
+    gc.appendChild(el('text', { x: tc[0], y: tc[1] - 6, 'text-anchor': 'middle', class: 'cattedra-t' }, 'Cattedra · Giulio'));
     gc.appendChild(el('text', { x: tc[0], y: tc[1] + 10, 'text-anchor': 'middle', class: 'cattedra-s' }, 'decide e dà il via'));
     gc.appendChild(el('line', { x1: tc[0], y1: tc[1] + 18, x2: cattedra[0], y2: cattedra[1] - 14, stroke: '#F5C451', 'stroke-width': 1, opacity: .6 }));
     isole = {};
@@ -463,23 +465,23 @@
       r.agenti.slice(0, 2).forEach((a, k) => {
         const dx = r.x - 1.5 + k * 3, dy = r.y + 0.2, z = TOP + 0.45;
         blocco(g, dx, dy, 1.9, 1.1, TOP, z, '#E9EEF4', '#8C99A8');
-        g.appendChild(poli([iso(dx - 0.6, dy - 0.35, z), iso(dx + 0.6, dy - 0.35, z), iso(dx + 0.6, dy - 0.35, z + 0.85), iso(dx - 0.6, dy - 0.35, z + 0.85)], { fill: '#0E141C', stroke: r.colore, 'stroke-width': 1 }));
+        g.appendChild(poli([iso(dx - 0.6, dy - 0.35, z), iso(dx + 0.6, dy - 0.35, z), iso(dx + 0.6, dy - 0.35, z + 0.85), iso(dx - 0.6, dy - 0.35, z + 0.85)], { fill: '#121214', stroke: r.colore, 'stroke-width': 1 }));
         const sc = iso(dx, dy - 0.35, z + 0.42);
         g.appendChild(el('rect', { x: sc[0] - 9, y: sc[1] - 4, width: 18, height: 2.2, rx: 1, fill: r.colore, opacity: .9 }));
         const testa = iso(dx, dy + 1, TOP + 0.9);
         g.appendChild(el('ellipse', { cx: testa[0], cy: testa[1] + 9, rx: 7, ry: 5, fill: r.lato }));
         g.appendChild(el('circle', { cx: testa[0], cy: testa[1], r: 5, fill: '#F0D2B4' }));
-        const nm = iso(dx, dy - 0.35, z + 1.6), larg = a.nome.length * 8.4 + 14;
-        g.appendChild(el('rect', { x: nm[0] - larg / 2, y: nm[1] - 13, width: larg, height: 19, rx: 4, fill: '#0E141C', stroke: r.colore, 'stroke-width': .8 }));
+        const nm = iso(dx, dy - 0.35, z + 1.6), larg = a.nome.length * 8.6 + 16;
+        g.appendChild(el('rect', { x: nm[0] - larg / 2, y: nm[1] - 13, width: larg, height: 19, rx: 4, fill: '#121214', stroke: r.colore, 'stroke-width': .8 }));
         g.appendChild(el('text', { x: nm[0], y: nm[1] + 1, 'text-anchor': 'middle', class: 'nome-ag' }, a.nome));
       });
-      const titolo = r.nome.toUpperCase(), lw = Math.max(titolo.length * 10.5 + 34, 236);
+      const titolo = r.nome, lw = Math.max(titolo.length * 9.6 + 40, 236);
       const sopra = iso(r.x, r.y - 2.2, TOP + 4.6), cx0 = sopra[0] - lw / 2, cy0 = sopra[1];
-      r.cartello = el('rect', { x: cx0, y: cy0 - 22, width: lw, height: 42, rx: 7, fill: '#0E141C', stroke: r.colore, 'stroke-opacity': .6 });
+      r.cartello = el('rect', { x: cx0, y: cy0 - 22, width: lw, height: 42, rx: 7, fill: '#121214', stroke: r.colore, 'stroke-opacity': .6 });
       g.appendChild(r.cartello);
       g.appendChild(el('circle', { cx: cx0 + 14, cy: cy0 - 6, r: 4.5, fill: r.colore }));
       g.appendChild(el('text', { x: cx0 + 25, y: cy0 - 1, class: 'etichetta-rep', fill: '#fff' }, titolo));
-      r.statoTesto = el('text', { x: cx0 + 13, y: cy0 + 14, class: 'sotto-rep', fill: '#97A6B8' }, `${r.agenti.length} AGENTI · IN ATTESA DEL GIRO`);
+      r.statoTesto = el('text', { x: cx0 + 13, y: cy0 + 14, class: 'sotto-rep', fill: '#A3A3A8' }, `${r.agenti.length} agenti · in attesa del giro`);
       g.appendChild(r.statoTesto);
       g.addEventListener('click', () => scegli(r.id));
       g.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); scegli(r.id); } });
@@ -544,15 +546,17 @@
     const l = (C.conv[r.id] || []).filter(m => !scrivendo(m)), m = l[l.length - 1];
     const scrive = (C.conv[r.id] || []).some(scrivendo);
     const sotto = r.tipo === 'tutti' ? 'Non sai a chi chiedere? Scrivi qui' : r.agenti.map(a => a.ruolo).join(' e ');
+    const es = r.tipo === 'tutti' ? null : ESITI[(C.stato[r.id] || {}).esito];
+    const segno = es && es[0] !== 'ok' ? `<span class="segno ${es[0]}" title="${esc(es[1])}"></span>` : '';
     return `<button type="button" class="wa-voce${r.tipo === 'tutti' ? ' wa-voce-tutti' : ''}" role="listitem" data-chat="${esc(r.id)}"${C.aperta === r.id ? ' aria-current="true"' : ''}>`
-      + avatarCoppia(r) + `<span style="min-width:0"><span class="nome" style="display:block">${r.tipo === 'tutti' ? 'Tutta la classe' : `${esc(coppia(r))} <span class="ruolo">(${esc(r.nome)})</span>`}</span>`
+      + `<span class="avatar-posto">${avatarCoppia(r)}${segno}</span>` + `<span style="min-width:0"><span class="nome" style="display:block">${r.tipo === 'tutti' ? 'Tutta la classe' : `${esc(coppia(r))} <span class="ruolo">(${esc(r.nome)})</span>`}</span>`
       + `<span class="anteprima" style="display:block">${scrive ? 'stanno scrivendo…' : m ? esc((m.chi === 'tu' ? 'Tu' : m.chi === 'classe' ? 'Classe' : m.chi) + ': ' + m.testo) : esc(sotto)}</span></span>`
       + `<span class="ora">${m ? esc(quandoBreve(m.creato_il)) : ''}</span></button>`;
   }
   function disegnaLista() {
     const box = document.getElementById('wa-voci'); if (!box) return;
     box.innerHTML = (C.tutti ? voce(C.tutti) : '') + C.reparti.map(voce).join('');
-    document.getElementById('wa-conta').textContent = C.reparti.length + ' coppie';
+    document.getElementById('wa-conta').textContent = C.reparti.length + ' reparti · ' + C.agenti.length + ' agenti';
   }
   function bolleConGiorni(lista, bolla) {
     let h = '', giorno = '';
@@ -567,16 +571,16 @@
 
   // ── «Chiedi un lavoro» (70-classe-lavori.sql) ─────────────────────────────
   const STATI_LAVORO = {
-    richiesto: ['attesa', 'IN CODA PER IL PIANO'], pianifico: ['attesa', 'SCRIVONO IL PIANO'], piano: ['decidi', 'PIANO DA APPROVARE'],
-    approvato: ['attesa', 'IN CODA PER IL LAVORO'], costruisco: ['attesa', 'LO STANNO FACENDO'], pronto: ['decidi', 'PRONTO: DA PUBBLICARE'],
-    da_pubblicare: ['attesa', 'IN CODA PER ANDARE ONLINE'], pubblico: ['attesa', 'VA ONLINE ORA'], pubblicato: ['fatto', 'ONLINE'],
-    rifiutato: ['fermo', 'FERMATO'], errore: ['fermo', 'SI È FERMATO']
+    richiesto: ['attesa', 'In coda per il piano'], pianifico: ['attesa', 'Scrivono il piano'], piano: ['decidi', 'Piano da approvare'],
+    approvato: ['attesa', 'In coda per il lavoro'], costruisco: ['attesa', 'Lo stanno facendo'], pronto: ['decidi', 'Pronto: da pubblicare'],
+    da_pubblicare: ['attesa', 'In coda per andare online'], pubblico: ['attesa', 'Va online ora'], pubblicato: ['fatto', 'Online'],
+    rifiutato: ['fermo', 'Fermato'], errore: ['fermo', 'Si è fermato']
   };
   const REPO = { riposa: 'Riposa', app: 'Easy', 'profarmer-cloud': 'documenti e database' };
   function schedaLavoro(l) {
     const st = STATI_LAVORO[l.stato] || ['attesa', l.stato];
     let corpo = '';
-    if (l.stato === 'richiesto' || l.stato === 'pianifico') corpo = `<p class="lv-nota">Al prossimo giro (ogni ora, ai :35) la coppia legge il codice e ti scrive qui il piano. Non cambia niente finché non approvi.</p>`;
+    if (l.stato === 'richiesto' || l.stato === 'pianifico') corpo = `<p class="lv-nota">La coppia legge il codice e ti scrive qui il piano, di solito in pochi minuti. Non cambia niente finché non approvi.</p>`;
     if (l.stato === 'piano') corpo = `<div class="lv-testo">${testoAgente(l.piano)}</div>`
       + `<div class="lv-azioni"><button type="button" class="bottone" data-decidi="approva" data-id="${esc(l.id)}">Approva il piano</button>`
       + `<button type="button" class="bottone secondario" data-decidi="correggi" data-id="${esc(l.id)}" title="Scrivi la correzione nel campo qui sotto, poi tocca qui">Correggi</button>`
@@ -601,7 +605,7 @@
       if (l.stato === 'pubblicato' && l.esito) corpo += `<p class="lv-nota">${testoAgente(l.esito)}</p>`;
     }
     if ((l.stato === 'rifiutato' || l.stato === 'errore') && l.esito) corpo = `<p class="lv-nota">${testoAgente(l.esito)}</p>`;
-    return `<div class="lavoro lv-${st[0]}"><div class="lv-testa"><b>Lavoro n. ${esc(l.numero)}${l.titolo ? ' · ' + esc(l.titolo) : ''}</b><span class="lv-stato">● ${esc(st[1])}</span></div>`
+    return `<div class="lavoro lv-${st[0]}"><div class="lv-testa"><b>Lavoro n. ${esc(l.numero)}${l.titolo ? ' · ' + esc(l.titolo) : ''}</b><span class="lv-stato">${esc(st[1])}</span></div>`
       + `<p class="lv-richiesta">${esc(String(l.richiesta).split('\n\nCorrezione di Giulio')[0])}</p>` + corpo + '</div>';
   }
   async function caricaSchermate(id) {
@@ -623,7 +627,7 @@
       if (!testo) { mostraErrore('Scrivi nel campo in basso cosa cambiare nel piano, poi tocca «Correggi».'); if (ta) ta.focus(); return; }
     }
     if (decisione === 'approva' && !confirm(`Approvi il piano del lavoro n. ${l.numero}? Lo fanno su un ramo a parte: non va online niente finché non premi «Pubblica».`)) return;
-    if (decisione === 'pubblica' && !confirm(`Pubblico il lavoro n. ${l.numero}?\n\nVa online al prossimo giro, esattamente come lo vedi qui${l.sql ? ', con le modifiche al database' : ''}.`)) return;
+    if (decisione === 'pubblica' && !confirm(`Pubblico il lavoro n. ${l.numero}?\n\nVa online adesso, esattamente come lo vedi qui${l.sql ? ', con le modifiche al database' : ''}.`)) return;
     if (decisione === 'rifiuta') {
       const p = prompt(`Fermo il lavoro n. ${l.numero}: non andrà online niente. Vuoi scrivere il perché? (facoltativo)`, '');
       if (p === null) return; testo = p.trim();
@@ -668,10 +672,10 @@
       + (lista.length ? '<button type="button" class="svuota" data-svuota>Svuota la chat</button>' : '') + '</div>'
       + '<div class="wa-msg">' + schedaReparto(r) + bolleConGiorni(lista, bollaMessaggio) + '</div>'
       + '<p class="wa-errore" id="wa-errore" hidden></p>'
-      + `<form class="wa-scrivi" id="wa-form"><textarea id="wa-testo" rows="1" maxlength="4000" placeholder="${r.tipo === 'tutti' ? 'Scrivi a tutta la classe' : 'Scrivi a ' + esc(coppia(r))}" aria-label="Messaggio per ${esc(titoloChat(r))}"></textarea>`
-      + `<div class="wa-azioni">${Dettato.supportato ? `<button type="button" class="detta${Dettato.attivo ? ' attivo' : ''}" data-detta aria-pressed="${Dettato.attivo}" aria-label="${Dettato.attivo ? 'Ferma la dettatura' : 'Detta il messaggio a voce'}" title="${Dettato.attivo ? 'Ferma la dettatura' : 'Detta a voce: parla, poi rileggi e invia'}">${ICONA.mic}</button>` : ''}<button type="submit" class="invia" aria-label="Invia"${scrivono || C.invio ? ' disabled' : ''}>${ICONA.invia}</button>`
-      + `<button type="button" class="approfondisci" data-approfondisci aria-label="Approfondisci: risposta entro un’ora con tutti gli strumenti" title="Approfondisci: risposta entro un’ora con tutti gli strumenti"${C.invio ? ' disabled' : ''}>${ICONA.approfondisci}</button>`
-      + (r.tipo === 'tutti' ? '' : `<button type="button" class="chiedi-lavoro" data-lavoro aria-label="Chiedi un lavoro: modifica a Riposa, Easy o database, con il tuo via" title="Chiedi un lavoro: la coppia ti propone un piano, lo approvi, poi pubblichi"${C.invio ? ' disabled' : ''}>${ICONA.lavoro}</button>`)
+      + `<form class="wa-scrivi" id="wa-form"><textarea id="wa-testo" rows="1" maxlength="4000" enterkeyhint="send" placeholder="${r.tipo === 'tutti' ? 'Scrivi a tutta la classe' : 'Scrivi a ' + esc(coppia(r))}" aria-label="Messaggio per ${esc(titoloChat(r))}"></textarea>`
+      + `<div class="wa-azioni">${Dettato.supportato ? `<button type="button" class="detta${Dettato.attivo ? ' attivo' : ''}" data-detta aria-pressed="${Dettato.attivo}" aria-label="${Dettato.attivo ? 'Ferma la dettatura' : 'Detta il messaggio a voce'}" title="${Dettato.attivo ? 'Ferma la dettatura' : 'Detta a voce: parla, poi rileggi e invia'}">${ICONA.mic}</button>` : ''}<button type="submit" class="invia" aria-label="Invia"${scrivono || C.invio ? ' disabled' : ''}>${ICONA.invia}</button></div>`
+      + `<div class="wa-altro"><button type="button" class="approfondisci" data-approfondisci title="Una sessione completa, con il codice, il database e i connettori: risposta di solito in pochi minuti"${C.invio ? ' disabled' : ''}>${ICONA.approfondisci}<span>Approfondisci</span></button>`
+      + (r.tipo === 'tutti' ? '' : `<button type="button" class="chiedi-lavoro" data-lavoro title="Modifica a Riposa, Easy o al database: la coppia ti propone un piano, lo approvi, poi pubblichi"${C.invio ? ' disabled' : ''}>${ICONA.lavoro}<span>Chiedi un lavoro</span></button>`)
       + '</div></form>';
     if (schedaAperta) { const d = box.querySelector('details.scheda-rep'); if (d) d.open = true; }
     const msg = box.querySelector('.wa-msg');
@@ -679,7 +683,7 @@
     const ta = box.querySelector('textarea');
     ta.value = bozza;
     const alza = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; };
-    alza(); if (fuoco) ta.focus();
+    alza(); if (fuoco) ta.focus({ preventScroll: true });
     ta.addEventListener('input', alza);
     ta.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); box.querySelector('#wa-form').requestSubmit(); } });
     box.querySelector('#wa-form').addEventListener('submit', ev => { ev.preventDefault(); manda('scrivi'); });
@@ -690,7 +694,7 @@
     if (Dettato.attivo) Dettato.ferma();
     const testo = ta.value.trim();
     if (!testo) { mostraErrore(azione === 'approfondisci' ? 'Scrivi prima la domanda da approfondire.' : azione === 'lavoro' ? 'Scrivi prima il lavoro da fare: cosa cambiare e perché.' : ''); return; }
-    if (azione === 'lavoro' && !confirm('Chiedo questo lavoro alla coppia?\n\nEntro un’ora ti scrive il piano: non cambia niente finché non premi «Approva» e poi «Pubblica».')) return;
+    if (azione === 'lavoro' && !confirm('Chiedo questo lavoro alla coppia?\n\nDi solito in pochi minuti ti scrive il piano: non cambia niente finché non premi «Approva» e poi «Pubblica».')) return;
     const rep = C.aperta;
     C.invio = true; mostraErrore('');
     document.querySelectorAll('#wa-form button').forEach(b => { b.disabled = true; });
@@ -723,8 +727,8 @@
     C.aperta = reparto(id) ? id : null;
     evidenzia(C.aperta);
     disegnaLista(); disegnaConv();
-    if (scorri) document.getElementById('chat').scrollIntoView({ behavior: movimento ? 'smooth' : 'auto', block: 'start' });
-    const ta = document.getElementById('wa-testo'); if (ta && matchMedia('(pointer:fine)').matches) ta.focus();
+    if (scorri) document.getElementById(matchMedia('(max-width:760px)').matches ? 'wa' : 'chat').scrollIntoView({ behavior: movimento ? 'smooth' : 'auto', block: 'start' });
+    const ta = document.getElementById('wa-testo'); if (ta && matchMedia('(pointer:fine)').matches) ta.focus({ preventScroll: true });
   }
 
   // ── avvio ────────────────────────────────────────────────────────────────
