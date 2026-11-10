@@ -265,6 +265,10 @@ h1,h2,h3{margin:0;text-wrap:balance}
 .lv-schermate img{display:block;max-height:420px;max-width:100%;border-radius:10px;border:1px solid var(--linea);background:#000}
 .lv-schermate figcaption{font-size:12.5px;color:var(--testo-3);margin-top:4px}
 .lv-avviso{margin:10px 0 4px;padding:8px 12px;border-radius:10px;background:var(--ko-fondo);color:var(--ko);font-size:13.5px;font-weight:600;overflow-wrap:anywhere}
+.lv-diff pre{max-height:420px}
+.lv-diff .d-piu{color:var(--ok)}.lv-diff .d-meno{color:var(--testo-3);}
+.lv-diff .d-allarme{color:var(--ko);background:var(--ko-fondo);font-weight:700}
+.lv-diff .d-file{color:var(--testo);font-weight:700}.lv-diff .d-pezzo{color:var(--link)}.lv-diff .d-meta{color:var(--testo-3)}
 .lv-sql summary{cursor:pointer;color:var(--testo-2);font-size:13.5px;padding:4px 0}
 .lv-sql pre{max-height:260px;overflow:auto;background:var(--sup-2);padding:10px 12px;border-radius:10px;font:12.5px/1.45 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
 

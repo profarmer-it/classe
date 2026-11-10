@@ -577,6 +577,31 @@
     [/\bdelete\s+from\b|\bupdate\s+[\w."]+\s+set\b/i, 'cambia o cancella dati'], [/\bexecute\b|\bstorage\./i, 'comandi costruiti o file']];
   const sqlDelicato = t => SQL_DELICATO.filter(([re]) => re.test(t || '')).map(([, cosa]) => cosa);
   const righe = t => String(t || '').split('\n').filter(x => x.trim()).length;
+  // Controllo di sicurezza del 10/11, punto 4: le righe di codice che cambiano (il diff lo calcola lavoro.py dal commit
+  // e sta nell'impronta del pacchetto, 79). In rosso, sopra, gli indirizzi nuovi fuori dai servizi già usati e le chiamate
+  // che possono mandare dati fuori (fetch, sendBeacon…): sono il modo in cui una riga potrebbe portar via i dati dei moduli.
+  const HOST_NOTI = /^(([a-z0-9-]+\.)*profarmer\.it|gmhmxybqmkcmnbjdnslz\.supabase\.co|cdnjs\.cloudflare\.com|challenges\.cloudflare\.com|([a-z0-9-]+\.)*openstreetmap\.org|([a-z0-9-]+\.)*iubenda\.com|github\.com|wa\.me|api\.whatsapp\.com|maps\.google\.com|www\.google\.com|fonts\.googleapis\.com|fonts\.gstatic\.com|ec\.europa\.eu|localhost)$/i;
+  const CHIAMATE = /\bfetch\s*\(|sendBeacon|XMLHttpRequest|new\s+WebSocket|EventSource|\beval\s*\(|new\s+Function\s*\(|document\.cookie|importScripts|<script\b|<iframe\b|\.src\s*=|window\.open\s*\(/i;
+  function vistaDiff(diff) {
+    if (diff === undefined) return '';
+    if (!diff) return '';
+    const righeDiff = diff.split('\n');
+    let piu = 0, meno = 0; const host = new Set(), sospette = [];
+    for (const r of righeDiff) {
+      if (r.startsWith('+++') || r.startsWith('---')) continue;
+      if (r[0] === '+') {
+        piu++;
+        for (const m of r.matchAll(/(?:https?:)?\/\/([a-z0-9.-]+\.[a-z]{2,})/gi)) if (!HOST_NOTI.test(m[1])) host.add(m[1].toLowerCase());
+        const c = r.match(CHIAMATE); if (c) sospette.push(c[0].replace(/\s+/g, ' ').replace(/\s*[(=]$/, '').trim());
+      } else if (r[0] === '-') meno++;
+    }
+    const allarme = host.size || sospette.length;
+    const classe = r => r.startsWith('### ') || r.startsWith('diff --git') ? 'd-file' : r.startsWith('@@') ? 'd-pezzo'
+      : r.startsWith('+++') || r.startsWith('---') || r.startsWith('index ') || r.startsWith('new file') || r.startsWith('deleted file') ? 'd-meta'
+      : r[0] === '+' ? (CHIAMATE.test(r) || [...r.matchAll(/(?:https?:)?\/\/([a-z0-9.-]+\.[a-z]{2,})/gi)].some(m => !HOST_NOTI.test(m[1])) ? 'd-piu d-allarme' : 'd-piu') : r[0] === '-' ? 'd-meno' : '';
+    return (allarme ? `<p class="lv-avviso">Il codice nuovo ${host.size ? `parla con indirizzi nuovi (${esc([...host].slice(0, 6).join(', '))})` : ''}${host.size && sospette.length ? ' e ' : ''}${sospette.length ? `ha chiamate che possono mandare dati fuori (${esc([...new Set(sospette)].slice(0, 4).join(', '))})` : ''}: guarda le righe in rosso prima di pubblicare.</p>` : '')
+      + `<details class="lv-sql lv-diff"${allarme ? ' open' : ''}><summary>Righe di codice che cambiano (+${piu} −${meno})</summary><pre>${righeDiff.map(r => `<span class="${classe(r)}">${esc(r) || ' '}</span>`).join('\n')}</pre></details>`;
+  }
   const STATI_LAVORO = {
     richiesto: ['attesa', 'In coda per il piano'], pianifico: ['attesa', 'Scrivono il piano'], piano: ['decidi', 'Piano da approvare'],
     approvato: ['attesa', 'In coda per il lavoro'], costruisco: ['attesa', 'Lo stanno facendo'], pronto: ['decidi', 'Pronto: da pubblicare'],
@@ -604,6 +629,7 @@
         + (sch && sch.length ? `<div class="lv-schermate">${sch.map(x => `<figure><img alt="${esc(x.titolo)}" src="data:${esc(x.tipo)};base64,${esc(x.dati)}" loading="lazy"><figcaption>${esc(x.titolo)}</figcaption></figure>`).join('')}</div>` : (conSchermate && !sch ? '<p class="lv-nota">Carico le schermate…</p>' : ''))
         + (rami.length ? `<p class="lv-nota">Cosa cambia: ${rami.map(r => `${esc(REPO[r.repo] || r.repo)}${/^https:\/\/github\.com\//.test(r.pr || '') ? ` (${testoAgente(r.pr)})` : ''}`).join(' · ')}</p>` : '')
         + (rami.some(r => Array.isArray(r.file) && r.file.length) ? `<details class="lv-sql"><summary>File che cambiano (${rami.reduce((n, r) => n + (Array.isArray(r.file) ? r.file.length : 0), 0)})</summary><pre>${rami.map(r => (Array.isArray(r.file) ? r.file : []).map(f => esc((REPO[r.repo] || r.repo) + ': ' + f)).join('\n')).join('\n')}</pre></details>` : '')
+        + vistaDiff((C.diff || {})[l.id])
         + (l.sql ? (sqlDelicato(l.sql).length ? `<p class="lv-avviso">Questo SQL tocca permessi, sicurezza o dati esistenti (${esc(sqlDelicato(l.sql).join(', '))}): leggilo prima di pubblicare.</p>` : '')
           + `<details class="lv-sql"${sqlDelicato(l.sql).length ? ' open' : ''}><summary>Modifiche al database (${righe(l.sql)} righe)</summary><pre>${esc(l.sql)}</pre></details>` : '')
         + ((l.funzioni || []).length ? `<p class="lv-nota">Funzioni del server da ripubblicare: ${esc(l.funzioni.join(', '))}</p>` : '');
@@ -621,7 +647,11 @@
     if (C.schermate[id] !== undefined) return;
     C.schermate[id] = null;
     try {
-      C.schermate[id] = await leggi(sb.from('classe_lavori_schermate').select('titolo, tipo, dati').eq('lavoro', id).order('ordine'));
+      const [sch, d] = await Promise.all([
+        leggi(sb.from('classe_lavori_schermate').select('titolo, tipo, dati').eq('lavoro', id).order('ordine')),
+        leggi(sb.from('classe_lavori').select('diff').eq('id', id))]);
+      C.schermate[id] = sch;
+      C.diff = C.diff || {}; C.diff[id] = (d && d[0] && d[0].diff) || '';
     } catch (_) { C.schermate[id] = []; }
     if (C.aperta) disegnaConv();
   }
