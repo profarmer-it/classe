@@ -570,6 +570,13 @@
   }
 
   // ── «Chiedi un lavoro» (70-classe-lavori.sql) ─────────────────────────────
+  // Controllo di sicurezza del 10/11, punto 5: le parti delicate dell'SQL di un lavoro, in rosso sopra il riquadro.
+  // Le cose vietate le rifiuta già il database (classe_sql_vietato, 78); queste passano ma Giulio deve vederle.
+  const SQL_DELICATO = [[/\b(grant|revoke)\b/i, 'permessi'], [/\bpolicy\b|row\s+level\s+security/i, 'regole di accesso'],
+    [/security\s+definer/i, 'funzioni con pieni poteri'], [/\b(drop|truncate)\b/i, 'cancella tabelle o funzioni'],
+    [/\bdelete\s+from\b|\bupdate\s+[\w."]+\s+set\b/i, 'cambia o cancella dati'], [/\bexecute\b|\bstorage\./i, 'comandi costruiti o file']];
+  const sqlDelicato = t => SQL_DELICATO.filter(([re]) => re.test(t || '')).map(([, cosa]) => cosa);
+  const righe = t => String(t || '').split('\n').filter(x => x.trim()).length;
   const STATI_LAVORO = {
     richiesto: ['attesa', 'In coda per il piano'], pianifico: ['attesa', 'Scrivono il piano'], piano: ['decidi', 'Piano da approvare'],
     approvato: ['attesa', 'In coda per il lavoro'], costruisco: ['attesa', 'Lo stanno facendo'], pronto: ['decidi', 'Pronto: da pubblicare'],
@@ -597,7 +604,8 @@
         + (sch && sch.length ? `<div class="lv-schermate">${sch.map(x => `<figure><img alt="${esc(x.titolo)}" src="data:${esc(x.tipo)};base64,${esc(x.dati)}" loading="lazy"><figcaption>${esc(x.titolo)}</figcaption></figure>`).join('')}</div>` : (conSchermate && !sch ? '<p class="lv-nota">Carico le schermate…</p>' : ''))
         + (rami.length ? `<p class="lv-nota">Cosa cambia: ${rami.map(r => `${esc(REPO[r.repo] || r.repo)}${/^https:\/\/github\.com\//.test(r.pr || '') ? ` (${testoAgente(r.pr)})` : ''}`).join(' · ')}</p>` : '')
         + (rami.some(r => Array.isArray(r.file) && r.file.length) ? `<details class="lv-sql"><summary>File che cambiano (${rami.reduce((n, r) => n + (Array.isArray(r.file) ? r.file.length : 0), 0)})</summary><pre>${rami.map(r => (Array.isArray(r.file) ? r.file : []).map(f => esc((REPO[r.repo] || r.repo) + ': ' + f)).join('\n')).join('\n')}</pre></details>` : '')
-        + (l.sql ? `<details class="lv-sql"><summary>Modifiche al database</summary><pre>${esc(l.sql)}</pre></details>` : '')
+        + (l.sql ? (sqlDelicato(l.sql).length ? `<p class="lv-avviso">Questo SQL tocca permessi, sicurezza o dati esistenti (${esc(sqlDelicato(l.sql).join(', '))}): leggilo prima di pubblicare.</p>` : '')
+          + `<details class="lv-sql"${sqlDelicato(l.sql).length ? ' open' : ''}><summary>Modifiche al database (${righe(l.sql)} righe)</summary><pre>${esc(l.sql)}</pre></details>` : '')
         + ((l.funzioni || []).length ? `<p class="lv-nota">Funzioni del server da ripubblicare: ${esc(l.funzioni.join(', '))}</p>` : '');
       if (l.stato === 'pronto') corpo += `<div class="lv-azioni"><button type="button" class="bottone" data-decidi="pubblica" data-id="${esc(l.id)}">Pubblica</button>`
         + `<button type="button" class="link" data-decidi="rifiuta" data-id="${esc(l.id)}">Rifiuta</button></div>`;
@@ -627,7 +635,8 @@
       if (!testo) { mostraErrore('Scrivi nel campo in basso cosa cambiare nel piano, poi tocca «Correggi».'); if (ta) ta.focus(); return; }
     }
     if (decisione === 'approva' && !confirm(`Approvi il piano del lavoro n. ${l.numero}? Lo fanno su un ramo a parte: non va online niente finché non premi «Pubblica».`)) return;
-    if (decisione === 'pubblica' && !confirm(`Pubblico il lavoro n. ${l.numero}?\n\nVa online adesso, esattamente come lo vedi qui${l.sql ? ', con le modifiche al database' : ''}.`)) return;
+    if (decisione === 'pubblica' && !confirm(`Pubblico il lavoro n. ${l.numero}?\n\nVa online adesso, esattamente come lo vedi qui${l.sql ? `, con ${righe(l.sql)} righe di modifiche al database` : ''}.`
+      + (l.sql && sqlDelicato(l.sql).length ? `\n\nAttenzione: l'SQL tocca ${sqlDelicato(l.sql).join(', ')}.` : ''))) return;
     if (decisione === 'rifiuta') {
       const p = prompt(`Fermo il lavoro n. ${l.numero}: non andrà online niente. Vuoi scrivere il perché? (facoltativo)`, '');
       if (p === null) return; testo = p.trim();
