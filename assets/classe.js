@@ -582,7 +582,8 @@
       + `<button type="button" class="bottone secondario" data-decidi="correggi" data-id="${esc(l.id)}" title="Scrivi la correzione nel campo qui sotto, poi tocca qui">Correggi</button>`
       + `<button type="button" class="link" data-decidi="rifiuta" data-id="${esc(l.id)}">Rifiuta</button></div>`
       + `<p class="lv-nota">Per correggere: scrivi cosa cambiare nel campo in basso e tocca «Correggi».</p>`;
-    if (l.stato === 'approvato' || l.stato === 'costruisco') corpo = `<p class="lv-nota">Lo fanno su un ramo a parte, senza toccare i siti né i dati veri. Poi qui trovi le schermate e «Pubblica».</p>`;
+    if (l.stato === 'approvato' || l.stato === 'costruisco') corpo = `<p class="lv-nota">Lo fanno su un ramo a parte, senza toccare i siti né i dati veri. Poi qui trovi le schermate e «Pubblica».</p>`
+      + (l.stato === 'approvato' ? `<div class="lv-azioni"><button type="button" class="link" data-decidi="rifiuta" data-id="${esc(l.id)}">Ferma il lavoro</button></div>` : '');
     if (l.stato === 'pronto' || l.stato === 'da_pubblicare' || l.stato === 'pubblico' || l.stato === 'pubblicato') {
       const rami = Array.isArray(l.rami) ? l.rami : [];
       const sch = (C.schermate || {})[l.id];
@@ -591,10 +592,12 @@
       corpo = `<div class="lv-testo">${testoAgente(l.riepilogo)}</div>`
         + (sch && sch.length ? `<div class="lv-schermate">${sch.map(x => `<figure><img alt="${esc(x.titolo)}" src="data:${esc(x.tipo)};base64,${esc(x.dati)}" loading="lazy"><figcaption>${esc(x.titolo)}</figcaption></figure>`).join('')}</div>` : (conSchermate && !sch ? '<p class="lv-nota">Carico le schermate…</p>' : ''))
         + (rami.length ? `<p class="lv-nota">Cosa cambia: ${rami.map(r => `${esc(REPO[r.repo] || r.repo)}${/^https:\/\/github\.com\//.test(r.pr || '') ? ` (${testoAgente(r.pr)})` : ''}`).join(' · ')}</p>` : '')
+        + (rami.some(r => Array.isArray(r.file) && r.file.length) ? `<details class="lv-sql"><summary>File che cambiano (${rami.reduce((n, r) => n + (Array.isArray(r.file) ? r.file.length : 0), 0)})</summary><pre>${rami.map(r => (Array.isArray(r.file) ? r.file : []).map(f => esc((REPO[r.repo] || r.repo) + ': ' + f)).join('\n')).join('\n')}</pre></details>` : '')
         + (l.sql ? `<details class="lv-sql"><summary>Modifiche al database</summary><pre>${esc(l.sql)}</pre></details>` : '')
         + ((l.funzioni || []).length ? `<p class="lv-nota">Funzioni del server da ripubblicare: ${esc(l.funzioni.join(', '))}</p>` : '');
       if (l.stato === 'pronto') corpo += `<div class="lv-azioni"><button type="button" class="bottone" data-decidi="pubblica" data-id="${esc(l.id)}">Pubblica</button>`
         + `<button type="button" class="link" data-decidi="rifiuta" data-id="${esc(l.id)}">Rifiuta</button></div>`;
+      if (l.stato === 'da_pubblicare') corpo += `<div class="lv-azioni"><button type="button" class="link" data-decidi="rifiuta" data-id="${esc(l.id)}">Ferma il lavoro</button></div>`;
       if (l.stato === 'pubblicato' && l.esito) corpo += `<p class="lv-nota">${testoAgente(l.esito)}</p>`;
     }
     if ((l.stato === 'rifiutato' || l.stato === 'errore') && l.esito) corpo = `<p class="lv-nota">${testoAgente(l.esito)}</p>`;
